@@ -7,6 +7,36 @@ import PrompterCore
 /// screen-recording permission.
 @MainActor
 enum DebugSnapshot {
+    /// `--snapshot-window library|settings|onboarding out.png`: shows the window, captures it.
+    static func runWindow(_ which: String, library: LibraryWindowController, settings: SettingsWindowController,
+                          model: LibraryModel, outputPath: String) {
+        let expectedTitle: String
+        switch which {
+        case "library":
+            expectedTitle = "Prompter"
+            if model.documents.isEmpty { model.createNew(title: "Sample: inventory update", text: SampleScript.text) }
+            model.selectedID = model.documents.first?.id
+            library.show()
+        case "settings": expectedTitle = "Prompter Settings"; settings.show()
+        case "onboarding": expectedTitle = "Welcome to Prompter"; library.showOnboarding()
+        default: print("unknown window \(which)"); NSApp.terminate(nil); return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            if let window = NSApp.windows.first(where: { $0.title == expectedTitle && $0.isVisible }),
+               let view = window.contentView,
+               let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                view.cacheDisplay(in: view.bounds, to: rep)
+                if let png = rep.representation(using: NSBitmapImageRep.FileType.png, properties: [:]) {
+                    try? png.write(to: URL(fileURLWithPath: outputPath))
+                    print("window snapshot written \(outputPath) \(rep.pixelsWide)x\(rep.pixelsHigh) title=\(window.title)")
+                }
+            } else {
+                print("window snapshot: no window")
+            }
+            NSApp.terminate(nil)
+        }
+    }
+
     /// `Prompter --snapshot-review out.png` renders the review card for a simulated session.
     static func runReview(outputPath: String) {
         let script = PhraseParser().parse(SampleScript.text)

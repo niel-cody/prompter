@@ -23,6 +23,32 @@ struct PromptView: View {
     private var appearance: PromptAppearance { preferences.appearance }
 
     var body: some View {
+        Group {
+            if session.mode == .classic {
+                ClassicPromptView(session: session, preferences: preferences)
+                    .padding(.horizontal, 24)
+            } else {
+                phraseStack
+            }
+        }
+        .overlay(alignment: .topTrailing) { statusBadge.padding(.top, 7).padding(.trailing, 9) }
+        .overlay(alignment: .bottom) {
+            if hovering {
+                controls
+                    .padding(.bottom, 8)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(PromptBackground(opacity: appearance.backgroundOpacity, theme: appearance.theme))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .onHover { hovering = $0 }
+        .animation(.easeInOut(duration: 0.28), value: session.currentIndex)
+        .animation(.easeInOut(duration: 0.2), value: session.isRunning)
+        .animation(.easeOut(duration: 0.16), value: hovering)
+    }
+
+    private var phraseStack: some View {
         VStack(spacing: appearance.lineSpacing) {
             if appearance.showPrevious {
                 phraseLine(session.previousPhrase, state: .spoken)
@@ -35,24 +61,9 @@ struct PromptView: View {
             }
             phraseLine(session.nextPhrase, state: .upcoming)
         }
-        .overlay(alignment: .topTrailing) { statusBadge.padding(.top, 7).padding(.trailing, 9) }
-        .overlay(alignment: .bottom) {
-            if hovering {
-                controls
-                    .padding(.bottom, 8)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
-        }
         .padding(.horizontal, 28)
         .padding(.top, 16)
         .padding(.bottom, 14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(PromptBackground(opacity: appearance.backgroundOpacity, theme: appearance.theme))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .onHover { hovering = $0 }
-        .animation(.easeInOut(duration: 0.28), value: session.currentIndex)
-        .animation(.easeInOut(duration: 0.2), value: session.isRunning)
-        .animation(.easeOut(duration: 0.16), value: hovering)
     }
 
     // MARK: - Lines

@@ -15,6 +15,9 @@ final class PromptController {
     private var observers: [NSObjectProtocol] = []
     /// Called when the user asks for Settings from the prompt's hover controls.
     var openSettings: (() -> Void)?
+    /// Saves clipboard prompts so they show up under Recent Prompts.
+    var library: LibraryModel?
+    private(set) var currentDocumentID: UUID?
 
     static let defaultSize = CGSize(width: 560, height: 190)
 
@@ -63,11 +66,17 @@ final class PromptController {
 
     // MARK: - Presenting
 
-    func present(text: String, title: String) {
+    func present(text: String, title: String, documentID: UUID? = nil) {
         let script = parser.parse(text)
         session.load(script: script, title: title)
         voice.rebuildMatcher()
+        currentDocumentID = documentID
         show()
+    }
+
+    func present(_ document: ScriptDocument) {
+        library?.markPresented(document.id)
+        present(text: document.text, title: document.title, documentID: document.id)
     }
 
     /// Clipboard Prompt: whatever is on the pasteboard becomes the prompt, instantly.
@@ -79,8 +88,10 @@ final class PromptController {
             NSSound.beep()
             return
         }
-        let firstLine = text.split(whereSeparator: \.isNewline).first.map(String.init) ?? "Clipboard"
-        present(text: text, title: String(firstLine.prefix(60)))
+        let title = ScriptDocument.inferredTitle(from: text)
+        // Save it quietly so it appears under Recent Prompts and can be edited later.
+        let saved = library?.saveClipboardPrompt(title: title, text: text)
+        present(text: text, title: title, documentID: saved?.id)
     }
 
     func show() {
