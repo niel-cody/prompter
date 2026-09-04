@@ -7,6 +7,7 @@ import PrompterCore
 @MainActor
 final class PromptController {
     let session: PromptSession
+    let voice = VoiceFollowController()
     private(set) var appearance = PromptAppearance()
     private var panel: PromptPanel?
     private let parser = PhraseParser()
@@ -15,6 +16,14 @@ final class PromptController {
 
     init() {
         session = PromptSession(script: PresentationScript(sourceText: "", sections: [], phrases: []), title: "")
+        voice.attach(to: session)
+        session.onJump = { [weak self] phrase, source in
+            if source == .user { self?.voice.reanchor(toPhrase: phrase) }
+        }
+        session.onRunningChanged = { [weak self] running in
+            guard let self else { return }
+            if running, session.mode == .coach { voice.startListening() } else { voice.stopListening() }
+        }
     }
 
     var isVisible: Bool { panel?.isVisible ?? false }
@@ -26,6 +35,7 @@ final class PromptController {
     func present(text: String, title: String) {
         let script = parser.parse(text)
         session.load(script: script, title: title)
+        voice.rebuildMatcher()
         show()
     }
 

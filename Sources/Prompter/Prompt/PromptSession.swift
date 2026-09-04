@@ -39,6 +39,11 @@ final class PromptSession {
     private var bankedPhraseTime: TimeInterval = 0
 
     private(set) var log = DeliveryLog()
+
+    enum JumpSource { case user, voice }
+    /// Fired after any position change; the voice follower re-anchors on user jumps.
+    var onJump: ((Int, JumpSource) -> Void)?
+    var onRunningChanged: ((Bool) -> Void)?
     private let clock = ContinuousClock()
     private let origin = Date()
 
@@ -91,6 +96,7 @@ final class PromptSession {
             log.resume(at: seconds(now), phrase: currentIndex)
         }
         phraseStartedAt = now
+        onRunningChanged?(true)
     }
 
     func pause() {
@@ -100,20 +106,25 @@ final class PromptSession {
         phraseStartedAt = nil
         isRunning = false
         log.pause(at: seconds(now))
+        onRunningChanged?(false)
     }
 
     func toggleRunning() { isRunning ? pause() : start() }
 
     func finish() {
         let now = Date()
-        if isRunning { isRunning = false }
+        let wasRunning = isRunning
+        isRunning = false
         phraseStartedAt = nil
         log.end(at: seconds(now))
+        if wasRunning { onRunningChanged?(false) }
     }
 
     func reset() {
+        let wasRunning = isRunning
         currentIndex = 0
         isRunning = false
+        if wasRunning { onRunningChanged?(false) }
         phraseStartedAt = nil
         bankedPhraseTime = 0
         log = DeliveryLog()
@@ -121,7 +132,7 @@ final class PromptSession {
 
     // MARK: - Navigation
 
-    func jump(to index: Int) {
+    func jump(to index: Int, source: JumpSource = .user) {
         guard !script.isEmpty else { return }
         let clamped = min(max(0, index), script.phrases.count - 1)
         guard clamped != currentIndex else { return }
@@ -132,6 +143,13 @@ final class PromptSession {
             phraseStartedAt = now
             log.enter(phrase: clamped, at: seconds(now))
         }
+        onJump?(clamped, source)
+    }
+
+    /// Voice follow heard new words.
+    func noteSpeech() {
+        guard isRunning else { return }
+        log.noteSpeech(at: seconds(Date()))
     }
 
     func advance() {

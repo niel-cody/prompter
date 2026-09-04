@@ -7,6 +7,9 @@ public struct DeliveryLog: Sendable, Equatable {
         public let phraseIndex: Int
         public let enteredAt: TimeInterval
         public var leftAt: TimeInterval?
+        /// When recognised speech was first / last heard during this visit (voice follow only).
+        public var firstSpeechAt: TimeInterval?
+        public var lastSpeechAt: TimeInterval?
 
         public var duration: TimeInterval? { leftAt.map { $0 - enteredAt } }
     }
@@ -46,6 +49,13 @@ public struct DeliveryLog: Sendable, Equatable {
             pauseBegan = nil
         }
         visits.append(Visit(phraseIndex: index, enteredAt: t, leftAt: nil))
+    }
+
+    /// Voice follow heard new words at `t`.
+    public mutating func noteSpeech(at t: TimeInterval) {
+        guard let last = visits.indices.last, visits[last].leftAt == nil else { return }
+        if visits[last].firstSpeechAt == nil { visits[last].firstSpeechAt = t }
+        visits[last].lastSpeechAt = t
     }
 
     public mutating func end(at t: TimeInterval) {

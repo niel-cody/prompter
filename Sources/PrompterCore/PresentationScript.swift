@@ -92,8 +92,9 @@ public struct Phrase: Sendable, Equatable, Identifiable {
         self.emphasis = emphasis
     }
 
-    /// Lower-cased, punctuation-stripped tokens for speech matching.
-    public var normalizedWords: [String] { words.map(\.normalized) }
+    /// Match tokens for speech alignment. Runs the written words through the same tokeniser
+    /// as the live transcript so contractions and numbers line up ("isn't" → "is", "not").
+    public var normalizedWords: [String] { words.flatMap { TextNormalizer.tokens(from: $0.text) } }
 }
 
 public struct Word: Sendable, Equatable {
