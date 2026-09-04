@@ -17,6 +17,9 @@ final class VoiceFollowController {
     private var committedTokens: [String] = []
     private var volatileTokens: [String] = []
     private var lastReportedTokenCount = 0
+    /// Once the last phrase has been spoken, a few quiet seconds end the session on their own.
+    private var autoFinish: Task<Void, Never>?
+    private let autoFinishDelay: Duration = .seconds(3)
 
     init() {
         speech.onTranscript = { [weak self] update in self?.handle(update) }
@@ -57,7 +60,10 @@ final class VoiceFollowController {
         Task { await speech.start() }
     }
 
-    func stopListening() { speech.stop() }
+    func stopListening() {
+        autoFinish?.cancel()
+        speech.stop()
+    }
 
     private func handle(_ update: TranscriptUpdate) {
         let tokens = TextNormalizer.tokens(from: update.text)
@@ -86,6 +92,15 @@ final class VoiceFollowController {
         }
         if let result, result.phraseIndex != session.currentIndex {
             session.jump(to: result.phraseIndex, source: .voice)
+        }
+
+        autoFinish?.cancel()
+        if let result, result.atPhraseEnd, result.phraseIndex == session.script.phrases.count - 1, session.isRunning {
+            autoFinish = Task { [weak self, delay = autoFinishDelay] in
+                try? await Task.sleep(for: delay)
+                guard !Task.isCancelled, let self, let session = self.session, session.isRunning else { return }
+                session.finish()
+            }
         }
     }
 

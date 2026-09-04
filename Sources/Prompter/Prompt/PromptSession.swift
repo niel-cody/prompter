@@ -90,6 +90,11 @@ final class PromptSession {
     func start() {
         guard !isRunning, !script.isEmpty else { return }
         let now = Date()
+        // Starting again after a review begins a fresh session from wherever we are.
+        if log.endedAt != nil {
+            log = DeliveryLog()
+            bankedPhraseTime = 0
+        }
         isRunning = true
         if log.startedAt == nil {
             log.start(at: seconds(now))
@@ -125,12 +130,14 @@ final class PromptSession {
 
     func reset() {
         let wasRunning = isRunning
+        let moved = currentIndex != 0
         currentIndex = 0
         isRunning = false
         if wasRunning { onRunningChanged?(false) }
         phraseStartedAt = nil
         bankedPhraseTime = 0
         log = DeliveryLog()
+        if moved { onJump?(0, .user) }
     }
 
     // MARK: - Navigation
