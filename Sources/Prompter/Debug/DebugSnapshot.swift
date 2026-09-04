@@ -6,7 +6,48 @@ import PrompterCore
 /// report to `out.png.txt`, so the UI can be checked from a terminal without
 /// screen-recording permission.
 @MainActor
+private final class FollowTrace {
+    var lastIndex = -1
+}
+
+@MainActor
 enum DebugSnapshot {
+    /// `--follow-test recording.aiff`: runs the sample script through the real live pipeline
+    /// (AVAudioEngine → converter → SpeechAnalyzer → matcher → session) with the file as
+    /// the "microphone", then prints the review. Exercises everything but the mic itself.
+    static func runFollowTest(prompt: PromptController, audioPath: String) {
+        prompt.voice.speech.testAudioFile = URL(fileURLWithPath: audioPath)
+        prompt.present(text: SampleScript.text, title: "Follow test")
+        let session = prompt.session
+        let trace = FollowTrace()
+        let started = Date()
+        // Poll the session so the trace doesn't need hooks in product code.
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            Task { @MainActor in
+                if session.currentIndex != trace.lastIndex {
+                    trace.lastIndex = session.currentIndex
+                    let t = String(format: "%5.1f", Date().timeIntervalSince(started))
+                    print("\(t)s → phrase \(trace.lastIndex): \(session.currentPhrase?.text ?? "")  [speech: \(prompt.voice.speech.state)]")
+                }
+            }
+        }
+        let original = session.onFinished
+        session.onFinished = {
+            timer.invalidate()
+            original?()
+            let review = DeliveryReview(log: session.log, script: session.script, plan: session.plan, styleName: session.style.displayName)
+            print("\nFINISHED after \(String(format: "%.1f", Date().timeIntervalSince(started)))s — \(review.headline) (\(review.score)/10)")
+            review.notes.forEach { print(" - \($0)") }
+            NSApp.terminate(nil)
+        }
+        session.start()
+        // Safety net: bail out if the audio never arrives.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 90) {
+            print("follow-test timed out; speech state \(prompt.voice.speech.state)")
+            NSApp.terminate(nil)
+        }
+    }
+
     /// `--snapshot-window library|settings|onboarding out.png`: shows the window, captures it.
     static func runWindow(_ which: String, library: LibraryWindowController, settings: SettingsWindowController,
                           model: LibraryModel, outputPath: String) {

@@ -31,6 +31,11 @@ final class Preferences {
         } else {
             stored = Stored()
         }
+        // Debug snapshot runs must never write back into the user's real preferences.
+        if CommandLine.arguments.contains(where: { $0.hasPrefix("--snapshot") }) {
+            suppressPersist = true
+            if ProcessInfo.processInfo.environment["PROMPTER_SNAPSHOT_THEME"] == "light" { stored.appearance.theme = .light }
+        }
     }
 
     var appearance: PromptAppearance {

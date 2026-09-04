@@ -41,12 +41,16 @@ final class SpeechService {
 
     /// Words the recogniser should be biased towards: the script's own vocabulary.
     var contextualVocabulary: [String] = []
+    /// Debug: stream this file through the live pipeline instead of the microphone.
+    var testAudioFile: URL?
 
     func start() async {
         guard !state.isActive else { return }
-        state = .requestingPermission
-        let granted = await AVCaptureDevice.requestAccess(for: .audio)
-        guard granted else { state = .denied; return }
+        if testAudioFile == nil {
+            state = .requestingPermission
+            let granted = await AVCaptureDevice.requestAccess(for: .audio)
+            guard granted else { state = .denied; return }
+        }
 
         guard SpeechTranscriber.isAvailable else {
             state = .unavailable("Speech recognition isn't available on this Mac.")
@@ -133,17 +137,40 @@ final class SpeechService {
 
     private func startAudioEngine(analyzerFormat: AVAudioFormat, continuation: AsyncStream<AnalyzerInput>.Continuation) throws {
         let engine = AVAudioEngine()
-        let input = engine.inputNode
-        let inputFormat = input.outputFormat(forBus: 0)
-        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
-            throw NSError(domain: "Prompter.Speech", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone is connected."])
+        let source: AVAudioNode
+        let sourceFormat: AVAudioFormat
+        var player: AVAudioPlayerNode?
+        var file: AVAudioFile?
+
+        if let testAudioFile {
+            // Same graph as the microphone path, fed from a file, with the speakers muted.
+            let f = try AVAudioFile(forReading: testAudioFile)
+            let p = AVAudioPlayerNode()
+            engine.attach(p)
+            engine.connect(p, to: engine.mainMixerNode, format: f.processingFormat)
+            engine.mainMixerNode.outputVolume = 0
+            source = p
+            sourceFormat = f.processingFormat
+            player = p
+            file = f
+        } else {
+            let input = engine.inputNode
+            let inputFormat = input.outputFormat(forBus: 0)
+            guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
+                throw NSError(domain: "Prompter.Speech", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone is connected."])
+            }
+            source = input
+            sourceFormat = inputFormat
         }
-        guard let converter = AVAudioConverter(from: inputFormat, to: analyzerFormat) else {
+
+        guard let converter = AVAudioConverter(from: sourceFormat, to: analyzerFormat) else {
             throw NSError(domain: "Prompter.Speech", code: 2, userInfo: [NSLocalizedDescriptionKey: "Couldn't convert microphone audio."])
         }
-        let ratio = analyzerFormat.sampleRate / inputFormat.sampleRate
+        let ratio = analyzerFormat.sampleRate / sourceFormat.sampleRate
 
-        input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { buffer, _ in
+        // The tap runs on a realtime audio thread. It must be explicitly @Sendable so it is not
+        // inferred to be MainActor-isolated along with the rest of this class.
+        source.installTap(onBus: 0, bufferSize: 4096, format: sourceFormat) { @Sendable buffer, _ in
             nonisolated(unsafe) let buffer = buffer
             let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 16
             guard let out = AVAudioPCMBuffer(pcmFormat: analyzerFormat, frameCapacity: capacity) else { return }
@@ -172,6 +199,11 @@ final class SpeechService {
         engine.prepare()
         try engine.start()
         self.engine = engine
+
+        if let player, let file {
+            player.scheduleFile(file, at: nil)
+            player.play()
+        }
     }
 
     private func handleConfigurationChange() {

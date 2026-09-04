@@ -18,7 +18,7 @@ struct PromptView: View {
     var preferences: Preferences
     var actions: PromptActions
 
-    @State private var hovering = false
+    @State private var hovering = ProcessInfo.processInfo.environment["PROMPTER_SNAPSHOT_HOVER"] == "1"
 
     private var appearance: PromptAppearance { preferences.appearance }
 

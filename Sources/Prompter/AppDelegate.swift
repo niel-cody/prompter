@@ -33,7 +33,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeys.register(.fontSmaller) { Preferences.shared.adjustFontSize(by: -2) }
 
         let args = CommandLine.arguments
-        if let i = args.firstIndex(of: "--snapshot-window"), i + 2 < args.count {
+        if let i = args.firstIndex(of: "--follow-test"), i + 1 < args.count {
+            DebugSnapshot.runFollowTest(prompt: promptController, audioPath: args[i + 1])
+        } else if let i = args.firstIndex(of: "--snapshot-window"), i + 2 < args.count {
             DebugSnapshot.runWindow(args[i + 1], library: libraryWindow, settings: settingsWindow, model: library, outputPath: args[i + 2])
         } else if let i = args.firstIndex(of: "--snapshot-review"), i + 1 < args.count {
             DebugSnapshot.runReview(outputPath: args[i + 1])

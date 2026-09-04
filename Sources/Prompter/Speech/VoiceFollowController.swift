@@ -79,11 +79,6 @@ final class VoiceFollowController {
         let all = committedTokens + volatileTokens
         guard let session, var matcher, !all.isEmpty else { return }
 
-        if all.count != lastReportedTokenCount {
-            lastReportedTokenCount = all.count
-            session.noteSpeech()
-        }
-
         let result = matcher.update(spoken: all)
         self.matcher = matcher
         if Self.logsTranscript {
@@ -92,6 +87,12 @@ final class VoiceFollowController {
         }
         if let result, result.phraseIndex != session.currentIndex {
             session.jump(to: result.phraseIndex, source: .voice)
+        }
+        // After any move, so the words that started a new phrase are credited to it. That
+        // is what makes the gap between phrases a real measure of the pause taken.
+        if all.count != lastReportedTokenCount {
+            lastReportedTokenCount = all.count
+            session.noteSpeech()
         }
 
         autoFinish?.cancel()
