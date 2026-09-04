@@ -7,8 +7,10 @@ import AppKit
 enum DebugSnapshot {
     static func run(prompt: PromptController, outputPath: String) {
         prompt.present(text: SampleScript.text, title: "Sample")
-        // Give SwiftUI a couple of run-loop turns to lay out before capturing.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+        prompt.session.jump(to: 4)
+        prompt.session.start()
+        // Capture partway through the phrase so the Pace Dot is mid-travel.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
             let report = capture(prompt: prompt, outputPath: outputPath)
             print(report)
             try? report.write(toFile: outputPath + ".txt", atomically: true, encoding: .utf8)

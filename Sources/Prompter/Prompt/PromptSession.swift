@@ -17,48 +17,131 @@ enum ReadingMode: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-/// The live state of one prompt: which script, where we are, how we're reading it.
-/// UI observes this; engines (pace, voice follow) drive it.
+/// The live state of one prompt: which script, where we are, how we're reading it, and
+/// when the current phrase began (which is what the Pace Dot runs from).
+/// UI observes this; engines (voice follow, keyboard) drive it.
 @MainActor
 @Observable
 final class PromptSession {
     private(set) var script: PresentationScript
+    private(set) var plan: PacePlan
     var title: String
     private(set) var currentIndex: Int = 0
-    var style: DeliveryStyle = .professional
+    private(set) var style: DeliveryStyle = .professional
     var mode: ReadingMode = .coach
-    var isRunning = false
 
-    init(script: PresentationScript, title: String) {
+    /// Running means the clock is live and the Pace Dot moves.
+    private(set) var isRunning = false
+    /// When the speaker started the current phrase, or nil while paused / not started.
+    private(set) var phraseStartedAt: Date?
+    /// Time already spent on the current phrase before a pause, so resuming continues
+    /// the dot from where it stopped instead of restarting the phrase.
+    private var bankedPhraseTime: TimeInterval = 0
+
+    private(set) var log = DeliveryLog()
+    private let clock = ContinuousClock()
+    private let origin = Date()
+
+    init(script: PresentationScript, title: String, style: DeliveryStyle = .professional) {
         self.script = script
         self.title = title
+        self.style = style
+        self.plan = PacePlan(script: script, profile: style.profile)
     }
+
+    // MARK: - Reading
 
     var currentPhrase: Phrase? { script.phrase(at: currentIndex) }
     var previousPhrase: Phrase? { script.phrase(at: currentIndex - 1) }
     var nextPhrase: Phrase? { script.phrase(at: currentIndex + 1) }
+    var currentTiming: PhraseTiming? { plan.timing(at: currentIndex) }
     var isAtEnd: Bool { currentIndex >= script.phrases.count - 1 }
     var progress: Double {
         script.phrases.isEmpty ? 0 : Double(currentIndex) / Double(max(1, script.phrases.count - 1))
     }
 
+    /// Seconds the speaker has spent on the current phrase, as of `date`.
+    func phraseElapsed(at date: Date) -> TimeInterval {
+        guard let start = phraseStartedAt else { return bankedPhraseTime }
+        return bankedPhraseTime + date.timeIntervalSince(start)
+    }
+
     func load(script: PresentationScript, title: String) {
         self.script = script
         self.title = title
+        plan = PacePlan(script: script, profile: style.profile)
+        reset()
+    }
+
+    func setStyle(_ style: DeliveryStyle) {
+        self.style = style
+        plan = PacePlan(script: script, profile: style.profile)
+    }
+
+    // MARK: - Clock
+
+    func start() {
+        guard !isRunning, !script.isEmpty else { return }
+        let now = Date()
+        isRunning = true
+        if log.startedAt == nil {
+            log.start(at: seconds(now))
+            log.enter(phrase: currentIndex, at: seconds(now))
+        } else {
+            log.resume(at: seconds(now), phrase: currentIndex)
+        }
+        phraseStartedAt = now
+    }
+
+    func pause() {
+        guard isRunning else { return }
+        let now = Date()
+        bankedPhraseTime = phraseElapsed(at: now)
+        phraseStartedAt = nil
+        isRunning = false
+        log.pause(at: seconds(now))
+    }
+
+    func toggleRunning() { isRunning ? pause() : start() }
+
+    func finish() {
+        let now = Date()
+        if isRunning { isRunning = false }
+        phraseStartedAt = nil
+        log.end(at: seconds(now))
+    }
+
+    func reset() {
         currentIndex = 0
         isRunning = false
+        phraseStartedAt = nil
+        bankedPhraseTime = 0
+        log = DeliveryLog()
     }
+
+    // MARK: - Navigation
 
     func jump(to index: Int) {
         guard !script.isEmpty else { return }
-        currentIndex = min(max(0, index), script.phrases.count - 1)
+        let clamped = min(max(0, index), script.phrases.count - 1)
+        guard clamped != currentIndex else { return }
+        currentIndex = clamped
+        bankedPhraseTime = 0
+        if isRunning {
+            let now = Date()
+            phraseStartedAt = now
+            log.enter(phrase: clamped, at: seconds(now))
+        }
     }
 
-    func advance() { jump(to: currentIndex + 1) }
+    func advance() {
+        if isAtEnd { finish() } else { jump(to: currentIndex + 1) }
+    }
     func retreat() { jump(to: currentIndex - 1) }
     func nextSection() {
         if let next = script.nextSectionStart(after: currentIndex) { jump(to: next) }
     }
     func previousSection() { jump(to: script.previousSectionStart(before: currentIndex)) }
-    func restart() { jump(to: 0); isRunning = false }
+
+    private func seconds(_ date: Date) -> TimeInterval { date.timeIntervalSince(origin) }
 }

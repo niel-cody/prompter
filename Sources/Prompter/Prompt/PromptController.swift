@@ -66,8 +66,31 @@ final class PromptController {
         let host = NSHostingView(rootView: PromptView(session: session, appearance: appearance))
         host.autoresizingMask = [.width, .height]
         panel.contentView = host
+        panel.onKeyDown = { [weak self] event in self?.handleKey(event) ?? false }
         self.panel = panel
         return panel
+    }
+
+    // MARK: - Keyboard (panel is key after a click; global shortcuts cover the rest)
+
+    private func handleKey(_ event: NSEvent) -> Bool {
+        guard let key = event.charactersIgnoringModifiers?.first else { return false }
+        let option = event.modifierFlags.contains(.option)
+        switch key {
+        case " ":
+            session.toggleRunning()
+        case Character(UnicodeScalar(NSRightArrowFunctionKey)!), Character(UnicodeScalar(NSDownArrowFunctionKey)!):
+            option ? session.nextSection() : session.advance()
+        case Character(UnicodeScalar(NSLeftArrowFunctionKey)!), Character(UnicodeScalar(NSUpArrowFunctionKey)!):
+            option ? session.previousSection() : session.retreat()
+        case "\u{1B}":
+            hide()
+        case "r" where event.modifierFlags.contains(.command):
+            session.reset()
+        default:
+            return false
+        }
+        return true
     }
 
     private func placementFrame() -> NSRect {

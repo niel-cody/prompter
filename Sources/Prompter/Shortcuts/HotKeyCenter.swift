@@ -8,6 +8,11 @@ struct HotKey: Hashable {
 
     static let promptClipboard = HotKey(keyCode: UInt32(kVK_ANSI_V), modifiers: UInt32(cmdKey | optionKey))
     static let toggleVisibility = HotKey(keyCode: UInt32(kVK_ANSI_P), modifiers: UInt32(cmdKey | optionKey))
+    static let startPause = HotKey(keyCode: UInt32(kVK_Return), modifiers: UInt32(cmdKey | optionKey))
+    static let nextPhrase = HotKey(keyCode: UInt32(kVK_RightArrow), modifiers: UInt32(cmdKey | optionKey))
+    static let previousPhrase = HotKey(keyCode: UInt32(kVK_LeftArrow), modifiers: UInt32(cmdKey | optionKey))
+    static let nextSection = HotKey(keyCode: UInt32(kVK_DownArrow), modifiers: UInt32(cmdKey | optionKey))
+    static let previousSection = HotKey(keyCode: UInt32(kVK_UpArrow), modifiers: UInt32(cmdKey | optionKey))
 }
 
 /// Registers system-wide hot keys with Carbon's `RegisterEventHotKey`, which works without

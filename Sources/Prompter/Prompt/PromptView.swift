@@ -1,31 +1,40 @@
 import SwiftUI
 import PrompterCore
 
-/// The prompt itself: a short stack of phrases centred under the camera. Previous fades,
-/// current is crisp, next is there but quiet. Nothing else competes for attention.
+/// The prompt itself: the current phrase sits at the top, nearest the camera, with the
+/// Pace Dot beneath it and the next phrase quietly below. Nothing else competes.
 struct PromptView: View {
     @Bindable var session: PromptSession
     var appearance: PromptAppearance
 
     var body: some View {
         VStack(spacing: appearance.lineSpacing) {
-            phraseLine(session.previousPhrase, state: .spoken)
+            if appearance.showPrevious {
+                phraseLine(session.previousPhrase, state: .spoken)
+            }
             phraseLine(session.currentPhrase, state: .current)
+            if session.mode == .coach {
+                PaceDotView(session: session, tint: appearance.theme.foreground)
+                    .padding(.horizontal, 12)
+                    .opacity(session.isRunning ? 1 : 0.35)
+            }
             phraseLine(session.nextPhrase, state: .upcoming)
         }
         .padding(.horizontal, 28)
-        .padding(.vertical, 20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(PromptBackground(opacity: appearance.backgroundOpacity))
+        .padding(.top, 16)
+        .padding(.bottom, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(PromptBackground(opacity: appearance.backgroundOpacity, theme: appearance.theme))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .animation(.easeInOut(duration: 0.28), value: session.currentIndex)
+        .animation(.easeInOut(duration: 0.2), value: session.isRunning)
     }
 
     @ViewBuilder
     private func phraseLine(_ phrase: Phrase?, state: PhraseState) -> some View {
         Text(phrase?.text ?? " ")
             .font(font(for: state, emphasis: phrase?.emphasis ?? .normal))
-            .foregroundStyle(state.color(theme: appearance.theme))
+            .foregroundStyle(appearance.theme.foreground)
             .opacity(state.opacity)
             .multilineTextAlignment(.center)
             .lineLimit(state == .current ? 3 : 2)
@@ -56,32 +65,34 @@ enum PhraseState: Hashable {
         case .upcoming: 0.55
         }
     }
+}
 
-    func color(theme: PromptTheme) -> Color {
-        switch theme {
+enum PromptTheme: String, CaseIterable, Codable {
+    case dark, light
+
+    var foreground: Color {
+        switch self {
         case .dark: .white
         case .light: .black
         }
     }
 }
 
-enum PromptTheme: String, CaseIterable, Codable {
-    case dark, light
-}
-
 struct PromptAppearance: Equatable, Codable {
     var fontSize: CGFloat = 30
-    var lineSpacing: CGFloat = 10
+    var lineSpacing: CGFloat = 8
     var backgroundOpacity: Double = 0.78
     var theme: PromptTheme = .dark
+    var showPrevious = false
 }
 
 private struct PromptBackground: View {
     var opacity: Double
+    var theme: PromptTheme
     var body: some View {
         ZStack {
             Rectangle().fill(.ultraThinMaterial)
-            Rectangle().fill(Color.black.opacity(opacity))
+            Rectangle().fill((theme == .dark ? Color.black : Color.white).opacity(opacity))
         }
     }
 }
