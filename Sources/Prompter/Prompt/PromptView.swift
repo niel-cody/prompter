@@ -63,7 +63,8 @@ struct PromptView: View {
         }
         .padding(.horizontal, 28)
         .padding(.top, 16)
-        .padding(.bottom, 14)
+        // Room at the bottom for the hover controls, so they never sit on top of a line.
+        .padding(.bottom, 40)
     }
 
     // MARK: - Lines

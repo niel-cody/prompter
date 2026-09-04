@@ -19,7 +19,7 @@ final class PromptController {
     var library: LibraryModel?
     private(set) var currentDocumentID: UUID?
 
-    static let defaultSize = CGSize(width: 560, height: 190)
+    static let defaultSize = CGSize(width: 560, height: 208)
 
     init() {
         session = PromptSession(script: PresentationScript(sourceText: "", sections: [], phrases: []), title: "",
