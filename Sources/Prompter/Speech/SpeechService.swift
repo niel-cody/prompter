@@ -106,12 +106,15 @@ final class SpeechService {
             try startAudioEngine(analyzerFormat: format, continuation: continuation)
             try await analyzer.start(inputSequence: stream)
             state = .listening
+            retriesLeft = 2
         } catch {
             fail("Couldn't start listening: \(error.localizedDescription)")
         }
     }
 
     func stop() {
+        retryTask?.cancel()
+        retryTask = nil
         engine?.inputNode.removeTap(onBus: 0)
         engine?.stop()
         engine = nil
@@ -128,9 +131,22 @@ final class SpeechService {
         if state != .denied, case .unavailable = state {} else { state = .idle }
     }
 
+    private var retryTask: Task<Void, Never>?
+    private var retriesLeft = 2
+
+    /// Recognition stopped on its own. Try again a couple of times before giving up: a
+    /// transient failure shouldn't end Voice Follow for the whole presentation.
     private func fail(_ message: String) {
         stop()
         state = .unavailable(message)
+        guard retriesLeft > 0 else { return }
+        retriesLeft -= 1
+        retryTask?.cancel()
+        retryTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self, case .unavailable = self.state else { return }
+            await self.start()
+        }
     }
 
     // MARK: - Audio
