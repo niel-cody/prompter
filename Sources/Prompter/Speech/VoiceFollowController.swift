@@ -44,6 +44,14 @@ final class VoiceFollowController {
         matcher?.reset(toPhrase: phrase)
     }
 
+    func setEnabled(_ enabled: Bool) {
+        isEnabled = enabled
+        if !enabled { stopListening() } else if session?.isRunning == true { startListening() }
+    }
+
+    /// `--transcript` on the command line logs what was heard and every move it caused.
+    static let logsTranscript = CommandLine.arguments.contains("--transcript")
+
     func startListening() {
         guard isEnabled else { return }
         Task { await speech.start() }
@@ -72,6 +80,10 @@ final class VoiceFollowController {
 
         let result = matcher.update(spoken: all)
         self.matcher = matcher
+        if Self.logsTranscript {
+            NSLog("[voice] %@ %@%@", update.isFinal ? "FINAL" : "vol  ", update.text,
+                  result.map { " → phrase \($0.phraseIndex) score \(String(format: "%.1f", $0.score))" } ?? "")
+        }
         if let result, result.phraseIndex != session.currentIndex {
             session.jump(to: result.phraseIndex, source: .voice)
         }

@@ -18,10 +18,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeys.register(.previousPhrase) { [weak self] in self?.promptController.session.retreat() }
         hotKeys.register(.nextSection) { [weak self] in self?.promptController.session.nextSection() }
         hotKeys.register(.previousSection) { [weak self] in self?.promptController.session.previousSection() }
+        hotKeys.register(.endSession) { [weak self] in self?.promptController.endSession() }
+        hotKeys.register(.fontLarger) { Preferences.shared.adjustFontSize(by: 2) }
+        hotKeys.register(.fontSmaller) { Preferences.shared.adjustFontSize(by: -2) }
 
         let args = CommandLine.arguments
-        if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
-            DebugSnapshot.run(prompt: promptController, outputPath: args[i + 1])
+        if let i = args.firstIndex(of: "--snapshot-review"), i + 1 < args.count {
+            DebugSnapshot.runReview(outputPath: args[i + 1])
+        } else if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
+            DebugSnapshot.run(prompt: promptController, hotKeys: hotKeys, outputPath: args[i + 1])
         } else if args.contains("--sample") {
             promptController.present(text: SampleScript.text, title: "Sample")
         }

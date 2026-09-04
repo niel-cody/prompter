@@ -30,14 +30,17 @@ public enum DeliveryStyle: String, Sendable, Codable, CaseIterable, Identifiable
 
     public var profile: PacingProfile {
         switch self {
+        // Speaking rates are for the words themselves; with the pauses below, a Professional
+        // delivery lands around 120–130 words per minute measured the way a speech coach
+        // would (pauses included), Measured around 105, Conversational 140, Energetic 160.
         case .measured:
-            PacingProfile(wordsPerMinute: 120, pauseScale: 1.35)
+            PacingProfile(wordsPerMinute: 135, pauseScale: 1.3)
         case .professional:
-            PacingProfile(wordsPerMinute: 140, pauseScale: 1.0)
+            PacingProfile(wordsPerMinute: 160, pauseScale: 1.0)
         case .conversational:
-            PacingProfile(wordsPerMinute: 155, pauseScale: 0.8)
+            PacingProfile(wordsPerMinute: 175, pauseScale: 0.8)
         case .energetic:
-            PacingProfile(wordsPerMinute: 170, pauseScale: 0.65)
+            PacingProfile(wordsPerMinute: 190, pauseScale: 0.65)
         }
     }
 }
@@ -62,11 +65,11 @@ public struct PacingProfile: Sendable, Equatable {
         let base: TimeInterval
         switch kind {
         case .none: base = 0
-        case .beat: base = 0.25
-        case .clause: base = 0.40
-        case .sentence: base = 0.70
-        case .emphatic: base = 1.00
-        case .paragraph: base = 1.40
+        case .beat: base = 0.15
+        case .clause: base = 0.30
+        case .sentence: base = 0.50
+        case .emphatic: base = 0.80
+        case .paragraph: base = 1.00
         }
         return base * pauseScale
     }

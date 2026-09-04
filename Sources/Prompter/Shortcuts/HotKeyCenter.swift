@@ -13,6 +13,9 @@ struct HotKey: Hashable {
     static let previousPhrase = HotKey(keyCode: UInt32(kVK_LeftArrow), modifiers: UInt32(cmdKey | optionKey))
     static let nextSection = HotKey(keyCode: UInt32(kVK_DownArrow), modifiers: UInt32(cmdKey | optionKey))
     static let previousSection = HotKey(keyCode: UInt32(kVK_UpArrow), modifiers: UInt32(cmdKey | optionKey))
+    static let endSession = HotKey(keyCode: UInt32(kVK_ANSI_Period), modifiers: UInt32(cmdKey | optionKey))
+    static let fontLarger = HotKey(keyCode: UInt32(kVK_ANSI_Equal), modifiers: UInt32(cmdKey | optionKey))
+    static let fontSmaller = HotKey(keyCode: UInt32(kVK_ANSI_Minus), modifiers: UInt32(cmdKey | optionKey))
 }
 
 /// Registers system-wide hot keys with Carbon's `RegisterEventHotKey`, which works without
@@ -23,6 +26,7 @@ final class HotKeyCenter {
     private var refs: [UInt32: EventHotKeyRef] = [:]
     private var nextID: UInt32 = 1
     private var eventHandler: EventHandlerRef?
+    var registeredCount: Int { refs.count }
 
     // Carbon hands us a C callback with no closure context, so route through a single
     // shared instance.

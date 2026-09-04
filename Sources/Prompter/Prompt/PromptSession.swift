@@ -44,6 +44,8 @@ final class PromptSession {
     /// Fired after any position change; the voice follower re-anchors on user jumps.
     var onJump: ((Int, JumpSource) -> Void)?
     var onRunningChanged: ((Bool) -> Void)?
+    /// The session ended (ran off the end of the script, or the user ended it).
+    var onFinished: (() -> Void)?
     private let clock = ContinuousClock()
     private let origin = Date()
 
@@ -118,6 +120,7 @@ final class PromptSession {
         phraseStartedAt = nil
         log.end(at: seconds(now))
         if wasRunning { onRunningChanged?(false) }
+        onFinished?()
     }
 
     func reset() {

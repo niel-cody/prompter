@@ -37,6 +37,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let running = prompt.session.isRunning
         menu.addItem(item(running ? "Pause" : "Start", #selector(toggleRunning), key: "\r", modifiers: [.command, .option]))
         menu.addItem(item("Restart", #selector(restart), key: "r", modifiers: [.command, .option]))
+        menu.addItem(item("End Session & Review", #selector(endSession), key: ".", modifiers: [.command, .option]))
+        let voiceItem = item("Voice Follow", #selector(toggleVoice), key: "")
+        voiceItem.state = prompt.voice.isEnabled ? .on : .off
+        menu.addItem(voiceItem)
         let styleItem = NSMenuItem(title: "Delivery", action: nil, keyEquivalent: "")
         let styleMenu = NSMenu()
         for style in DeliveryStyle.allCases {
@@ -66,9 +70,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func recenter() { prompt.recenterUnderCamera() }
     @objc private func toggleRunning() { prompt.session.toggleRunning() }
     @objc private func restart() { prompt.session.reset() }
+    @objc private func endSession() { prompt.endSession() }
+    @objc private func toggleVoice() { prompt.setVoiceFollow(!prompt.voice.isEnabled) }
     @objc private func pickStyle(_ sender: NSMenuItem) {
         if let raw = sender.representedObject as? String, let style = DeliveryStyle(rawValue: raw) {
-            prompt.session.setStyle(style)
+            prompt.setStyle(style)
         }
     }
     @objc private func quit() { NSApp.terminate(nil) }
