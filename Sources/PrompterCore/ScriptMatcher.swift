@@ -118,8 +118,10 @@ public struct ScriptMatcher: Sendable {
 
     private struct Alignment { var score: Double; var end: Int }
 
-    /// Smith–Waterman local alignment of the spoken tail against the script window. We only
-    /// need the best end position in the script and its score, not the full path.
+    /// Smith–Waterman-style alignment of the spoken tail against the script window, scored
+    /// only where the alignment ends at the *latest* spoken word. That is the position that
+    /// matters: older words already had their turn, and a run of unmatched new words makes
+    /// the score fall away instead of letting stale context keep winning.
     private func align(_ spoken: [String], windowRange: Range<Int>) -> Alignment? {
         let m = spoken.count
         let n = windowRange.count
@@ -142,6 +144,7 @@ public struct ScriptMatcher: Sendable {
                 let skipSpoken = prev[j] - skipSpokenPenalty
                 let v = max(0, sub, skipScript, skipSpoken)
                 curr[j] = v
+                guard i == m else { continue }
                 if v > best.score + 1e-9 {
                     best = Alignment(score: v, end: base + j - 1)
                 } else if abs(v - best.score) <= 1e-9, best.end >= 0, anchor >= 0,
@@ -152,7 +155,7 @@ public struct ScriptMatcher: Sendable {
             }
             swap(&prev, &curr)
         }
-        return best.end >= 0 ? best : nil
+        return best.end >= 0 && best.score > 0 ? best : nil
     }
 
     /// How well a spoken token matches a script token. Content words are worth more than
