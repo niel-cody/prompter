@@ -18,6 +18,9 @@ final class Preferences {
         var panelFrames: [String: CGRect] = [:]
         var hasCompletedOnboarding = false
         var classicScrollSpeed: Double = 1.0
+        var checkForUpdatesAutomatically = true
+        var lastUpdateCheck: Date? = nil
+        var skippedUpdateVersion: String? = nil
     }
 
     private static let key = "Prompter.preferences"
@@ -57,6 +60,18 @@ final class Preferences {
     var hasCompletedOnboarding: Bool {
         get { stored.hasCompletedOnboarding }
         set { stored.hasCompletedOnboarding = newValue }
+    }
+    var checkForUpdatesAutomatically: Bool {
+        get { stored.checkForUpdatesAutomatically }
+        set { stored.checkForUpdatesAutomatically = newValue }
+    }
+    var lastUpdateCheck: Date? {
+        get { stored.lastUpdateCheck }
+        set { stored.lastUpdateCheck = newValue }
+    }
+    var skippedUpdateVersion: String? {
+        get { stored.skippedUpdateVersion }
+        set { stored.skippedUpdateVersion = newValue }
     }
     var classicScrollSpeed: Double {
         get { stored.classicScrollSpeed }

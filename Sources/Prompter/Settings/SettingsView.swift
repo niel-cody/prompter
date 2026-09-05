@@ -133,6 +133,7 @@ private struct ShortcutsSettings: View {
 
 private struct PrivacySettings: View {
     @State private var micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+    var preferences = Preferences.shared
 
     var body: some View {
         Form {
@@ -140,6 +141,12 @@ private struct PrivacySettings: View {
                 Text("Your words stay on your Mac.")
                     .font(.headline)
                 Text("Scripts are stored in Application Support as plain files. Speech recognition runs on this Mac using Apple's on-device models. Microphone audio is streamed to the recogniser and never written to disk. There is no account, no sync and no telemetry.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Section {
+                Toggle("Check for updates automatically", isOn: Binding(get: { preferences.checkForUpdatesAutomatically },
+                                                                       set: { preferences.checkForUpdatesAutomatically = $0 }))
+                Text("Once a day Prompter asks GitHub for the latest release. Nothing about you or your scripts is sent.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             Section {
@@ -156,7 +163,7 @@ private struct PrivacySettings: View {
             }
         }
         .formStyle(.grouped)
-        .frame(height: 340)
+        .frame(height: 400)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
         }

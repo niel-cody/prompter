@@ -96,6 +96,24 @@ Two ideas shape the design:
 | Conversational | 175 wpm | Talking to a colleague |
 | Energetic | 190 wpm, short pauses | Keeps a demo moving |
 
+## Install
+
+Grab `Prompter-<version>.zip` from the [latest release](https://github.com/niel-cody/prompter/releases/latest),
+unzip, drag `Prompter.app` to Applications. Until builds are notarized, the first open is
+**right-click → Open**. Prompter checks GitHub once a day for a new version (menu bar →
+*Check for Updates…*; can be turned off in Settings → Privacy).
+
+## Releasing
+
+```bash
+Scripts/release.sh 1.0.0            # bump, build release, zip, tag, push, GitHub release
+Scripts/release.sh 1.0.0 --dry-run  # just build and zip
+```
+
+Write the version's notes under `## [1.0.0]` in `CHANGELOG.md` first; they become the release
+notes and the text the in-app update prompt shows. Set `DEVELOPER_ID` and `NOTARY_PROFILE`
+to sign with a Developer ID and notarize.
+
 ## Status
 
 Working end to end on macOS 26: clipboard prompt, camera placement, phrase highlighting,

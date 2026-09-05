@@ -9,17 +9,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var library: LibraryModel!
     private var libraryWindow: LibraryWindowController!
     private var settingsWindow: SettingsWindowController!
+    private let updates = UpdateChecker()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let args = CommandLine.arguments
         promptController = PromptController()
         library = LibraryModel(store: ScriptLibrary(directory: ScriptLibrary.defaultDirectory()))
         promptController.library = library
         libraryWindow = LibraryWindowController(library: library, prompt: promptController)
         settingsWindow = SettingsWindowController(prompt: promptController)
         promptController.openSettings = { [weak self] in self?.settingsWindow.show() }
-        statusItem = StatusItemController(prompt: promptController)
+        statusItem = StatusItemController(prompt: promptController, updates: updates)
         statusItem.openLibrary = { [weak self] in self?.libraryWindow.show() }
         statusItem.openSettings = { [weak self] in self?.settingsWindow.show() }
+        if !args.contains(where: { $0.hasPrefix("--snapshot") || $0 == "--follow-test" }) {
+            updates.startAutomaticChecks()
+        }
         hotKeys = HotKeyCenter()
         hotKeys.register(.promptClipboard) { [weak self] in self?.promptController.promptClipboard() }
         hotKeys.register(.toggleVisibility) { [weak self] in self?.promptController.toggleVisibility() }
@@ -32,7 +37,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeys.register(.fontLarger) { Preferences.shared.adjustFontSize(by: 2) }
         hotKeys.register(.fontSmaller) { Preferences.shared.adjustFontSize(by: -2) }
 
-        let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--follow-test"), i + 1 < args.count {
             DebugSnapshot.runFollowTest(prompt: promptController, audioPath: args[i + 1])
         } else if let i = args.firstIndex(of: "--snapshot-window"), i + 2 < args.count {

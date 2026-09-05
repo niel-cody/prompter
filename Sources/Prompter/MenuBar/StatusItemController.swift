@@ -6,11 +6,13 @@ import PrompterCore
 final class StatusItemController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let prompt: PromptController
+    private let updates: UpdateChecker
     var openLibrary: (() -> Void)?
     var openSettings: (() -> Void)?
 
-    init(prompt: PromptController) {
+    init(prompt: PromptController, updates: UpdateChecker) {
         self.prompt = prompt
+        self.updates = updates
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
 
@@ -28,6 +30,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
+        if let release = updates.available {
+            menu.addItem(item("Update to Prompter \(release.version)…", #selector(offerUpdate), key: ""))
+            menu.addItem(.separator())
+        }
         menu.addItem(item("New Prompt…", #selector(newPrompt), key: "n"))
         menu.addItem(item("Prompt Clipboard", #selector(promptClipboard), key: "v", modifiers: [.command, .option]))
         let recent = NSMenuItem(title: "Recent Prompts", action: nil, keyEquivalent: "")
@@ -86,6 +92,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(item("Open Prompter", #selector(openLibraryWindow), key: "o"))
         menu.addItem(item("Settings…", #selector(openSettingsWindow), key: ","))
+        let check = item("Check for Updates…", #selector(checkForUpdates), key: "")
+        check.isEnabled = !updates.isChecking
+        menu.addItem(check)
         menu.addItem(.separator())
 
         menu.addItem(item("Quit Prompter", #selector(quit), key: "q"))
@@ -109,6 +118,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if let raw = sender.representedObject as? String, let mode = ReadingMode(rawValue: raw) { prompt.setMode(mode) }
     }
     @objc private func openLibraryWindow() { openLibrary?() }
+    @objc private func checkForUpdates() { Task { await updates.checkNow() } }
+    @objc private func offerUpdate() { updates.offerAvailable() }
     @objc private func openSettingsWindow() { openSettings?() }
     @objc private func showSample() { prompt.present(text: SampleScript.text, title: "Sample") }
     @objc private func toggleVisibility() { prompt.toggleVisibility() }
