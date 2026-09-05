@@ -16,6 +16,9 @@ final class ReviewWindowController {
         let window = self.window ?? makeWindow()
         window.contentViewController = host
         window.title = "Delivery Review"
+        // Size the window to the card's natural height; the notes vary in length.
+        let fitting = host.sizeThatFits(in: NSSize(width: 440, height: 2000))
+        window.setContentSize(NSSize(width: 440, height: ceil(fitting.height)))
         window.center()
         self.window = window
         NSApp.activate()

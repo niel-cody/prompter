@@ -55,9 +55,10 @@ struct ReviewView: View {
                     stat("Covered", value: "\(Int((review.completion * 100).rounded()))%")
                     stat("Time", value: Self.duration(review.activeDuration))
                 }
+                .padding(.bottom, 22)
+            } else {
+                Spacer().frame(height: 22)
             }
-
-            Spacer(minLength: 20)
 
             HStack {
                 Spacer()
@@ -68,8 +69,8 @@ struct ReviewView: View {
             }
         }
         .padding(24)
+        .padding(.top, 8)
         .frame(width: 440)
-        .frame(minHeight: 300)
     }
 
     private func stat(_ label: String, value: String) -> some View {

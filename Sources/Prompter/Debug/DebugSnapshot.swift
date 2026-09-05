@@ -79,7 +79,7 @@ enum DebugSnapshot {
     }
 
     /// `Prompter --snapshot-review out.png` renders the review card for a simulated session.
-    static func runReview(outputPath: String) {
+    static func runReview(prompt: PromptController, outputPath: String) {
         let script = PhraseParser().parse(SampleScript.text)
         let plan = PacePlan(script: script, profile: DeliveryStyle.professional.profile)
         var log = DeliveryLog()
@@ -107,7 +107,14 @@ enum DebugSnapshot {
             print("review snapshot written \(outputPath)")
         }
         print(review.headline); review.notes.forEach { print(" - \($0)") }
-        NSApp.terminate(nil)
+        prompt.reviewWindow.show(review: review, title: "Inventory rollout update") {}
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            if let w = NSApp.windows.first(where: { $0.title == "Delivery Review" }), let host = w.contentViewController as? NSHostingController<ReviewView> {
+                let fit = host.sizeThatFits(in: NSSize(width: 440, height: 2000))
+                print("review window content \(w.contentLayoutRect.size) fitting \(fit) cropped=\(fit.height > w.contentLayoutRect.height + 1)")
+            }
+            NSApp.terminate(nil)
+        }
     }
 
     static func run(prompt: PromptController, hotKeys: HotKeyCenter, outputPath: String) {

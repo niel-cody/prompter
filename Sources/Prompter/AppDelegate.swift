@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else if let i = args.firstIndex(of: "--snapshot-window"), i + 2 < args.count {
             DebugSnapshot.runWindow(args[i + 1], library: libraryWindow, settings: settingsWindow, model: library, outputPath: args[i + 2])
         } else if let i = args.firstIndex(of: "--snapshot-review"), i + 1 < args.count {
-            DebugSnapshot.runReview(outputPath: args[i + 1])
+            DebugSnapshot.runReview(prompt: promptController, outputPath: args[i + 1])
         } else if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
             DebugSnapshot.run(prompt: promptController, hotKeys: hotKeys, outputPath: args[i + 1])
         } else if args.contains("--sample") {
