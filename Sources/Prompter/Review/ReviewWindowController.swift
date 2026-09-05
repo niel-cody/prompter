@@ -9,34 +9,32 @@ final class ReviewWindowController {
     private var window: NSWindow?
 
     func show(review: DeliveryReview, title: String, onPresentAgain: @escaping () -> Void) {
+        let window = self.window ?? makeWindow()
         let view = ReviewView(review: review, title: title,
                               onPresentAgain: { [weak self] in self?.close(); onPresentAgain() },
-                              onClose: { [weak self] in self?.close() })
+                              onClose: { [weak self] in self?.close() },
+                              onHeightChange: { [weak window] height in
+                                  guard let window else { return }
+                                  Self.fit(window, toHeight: height)
+                              })
         let host = NSHostingController(rootView: view)
-        let window = self.window ?? makeWindow()
+        // The view reports its own laid-out height; don't let the hosting view fight it.
+        host.sizingOptions = []
         window.contentViewController = host
         window.title = "Delivery Review"
-        // Size the window to the card's natural height; the notes vary in length. Text wrapping
-        // settles only after a layout pass, so measure once now and once more after it.
-        fit(window, to: host)
+        window.setContentSize(NSSize(width: 440, height: 420))
         window.center()
         self.window = window
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
-        DispatchQueue.main.async { [weak self] in
-            guard let self, self.window === window else { return }
-            self.fit(window, to: host)
-        }
     }
 
-    private func fit(_ window: NSWindow, to host: NSHostingController<ReviewView>) {
-        host.view.layoutSubtreeIfNeeded()
-        let fitting = host.sizeThatFits(in: NSSize(width: 440, height: 2000))
-        let target = NSSize(width: 440, height: ceil(fitting.height))
-        guard abs(window.contentLayoutRect.height - target.height) > 0.5 else { return }
+    /// Grow or shrink the window to the card's natural height, keeping its top edge put.
+    private static func fit(_ window: NSWindow, toHeight height: CGFloat) {
+        let target = ceil(height)
+        guard target > 0, abs(window.contentLayoutRect.height - target) > 0.5 else { return }
         let oldFrame = window.frame
-        window.setContentSize(target)
-        // Keep the top edge where it was so the card grows downwards, not off the top.
+        window.setContentSize(NSSize(width: 440, height: target))
         window.setFrameTopLeftPoint(NSPoint(x: oldFrame.minX, y: oldFrame.maxY))
     }
 

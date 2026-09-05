@@ -8,8 +8,17 @@ struct ReviewView: View {
     let title: String
     var onPresentAgain: () -> Void
     var onClose: () -> Void
+    /// Reports the card's natural height so the window can be sized to fit it.
+    var onHeightChange: (CGFloat) -> Void = { _ in }
 
     var body: some View {
+        card
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { onHeightChange($0) }
+            .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    private var card: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {

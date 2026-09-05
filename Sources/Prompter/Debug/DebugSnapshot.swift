@@ -112,6 +112,12 @@ enum DebugSnapshot {
             if let w = NSApp.windows.first(where: { $0.title == "Delivery Review" }), let host = w.contentViewController as? NSHostingController<ReviewView> {
                 let fit = host.sizeThatFits(in: NSSize(width: 440, height: 2000))
                 print("review window content \(w.contentLayoutRect.size) fitting \(fit) cropped=\(fit.height > w.contentLayoutRect.height + 1)")
+                if let view = w.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                    view.cacheDisplay(in: view.bounds, to: rep)
+                    if let png = rep.representation(using: NSBitmapImageRep.FileType.png, properties: [:]) {
+                        try? png.write(to: URL(fileURLWithPath: outputPath.replacingOccurrences(of: ".png", with: "-window.png")))
+                    }
+                }
             }
             NSApp.terminate(nil)
         }
