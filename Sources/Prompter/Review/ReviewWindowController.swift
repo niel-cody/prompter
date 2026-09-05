@@ -16,13 +16,28 @@ final class ReviewWindowController {
         let window = self.window ?? makeWindow()
         window.contentViewController = host
         window.title = "Delivery Review"
-        // Size the window to the card's natural height; the notes vary in length.
-        let fitting = host.sizeThatFits(in: NSSize(width: 440, height: 2000))
-        window.setContentSize(NSSize(width: 440, height: ceil(fitting.height)))
+        // Size the window to the card's natural height; the notes vary in length. Text wrapping
+        // settles only after a layout pass, so measure once now and once more after it.
+        fit(window, to: host)
         window.center()
         self.window = window
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.window === window else { return }
+            self.fit(window, to: host)
+        }
+    }
+
+    private func fit(_ window: NSWindow, to host: NSHostingController<ReviewView>) {
+        host.view.layoutSubtreeIfNeeded()
+        let fitting = host.sizeThatFits(in: NSSize(width: 440, height: 2000))
+        let target = NSSize(width: 440, height: ceil(fitting.height))
+        guard abs(window.contentLayoutRect.height - target.height) > 0.5 else { return }
+        let oldFrame = window.frame
+        window.setContentSize(target)
+        // Keep the top edge where it was so the card grows downwards, not off the top.
+        window.setFrameTopLeftPoint(NSPoint(x: oldFrame.minX, y: oldFrame.maxY))
     }
 
     func close() {
