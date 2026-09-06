@@ -46,16 +46,26 @@ curl -fsSL --progress-bar -o "$TMP/Prompter.zip" "$URL" || fail "download failed
 ditto -x -k "$TMP/Prompter.zip" "$TMP/unpacked" || fail "couldn't unzip the download."
 [ -d "$TMP/unpacked/Prompter.app" ] || fail "the download didn't contain Prompter.app."
 
-# 4. Replace any existing copy.
-if [ -d "$APP" ]; then
-  say "Replacing the existing copy…"
-  osascript -e 'quit app "Prompter"' 2>/dev/null || true
-  sleep 1
-  rm -rf "$APP" || fail "couldn't remove $APP. Quit Prompter and try again."
+# 4. Quit any running copy, wherever it was launched from, and wait for it to go.
+if pgrep -x Prompter >/dev/null 2>&1; then
+  say "Quitting the running copy…"
+  osascript -e 'quit app "Prompter"' >/dev/null 2>&1 || true
+  for _ in $(seq 1 20); do
+    pgrep -x Prompter >/dev/null 2>&1 || break
+    sleep 0.25
+  done
+  pgrep -x Prompter >/dev/null 2>&1 && pkill -x Prompter 2>/dev/null || true
+  for _ in $(seq 1 20); do
+    pgrep -x Prompter >/dev/null 2>&1 || break
+    sleep 0.25
+  done
 fi
+
+# 5. Replace any existing copy.
+[ -d "$APP" ] && { rm -rf "$APP" || fail "couldn't remove $APP. Quit Prompter and try again."; }
 ditto "$TMP/unpacked/Prompter.app" "$APP" || fail "couldn't copy into /Applications."
 
-# 5. Clear the quarantine flag so the app opens without a Gatekeeper detour.
+# 6. Clear the quarantine flag so the app opens without a Gatekeeper detour.
 xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
 
 say ""
