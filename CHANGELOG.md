@@ -5,6 +5,13 @@ version becomes its GitHub release notes.
 
 ## [Unreleased]
 
+## [0.9.2] — 2026-09-05
+
+- Only one Prompter runs at a time. A second copy now hands over to the one already
+  running instead of adding a duplicate menu-bar icon and competing for the same shortcuts.
+- The installer quits a running copy before replacing it, so upgrading in place works.
+- Update checking (release parsing, version comparison) moved into tested code.
+
 ## [0.9.1] — 2026-09-05
 
 Ready to install and demo on a second Mac.

@@ -13,6 +13,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let args = CommandLine.arguments
+        // One Prompter at a time. Two copies means two menu-bar icons and two claims on the
+        // same global shortcuts, which is worse than useless. Debug modes are exempt so they
+        // can run while the app is open.
+        let isDebugRun = args.contains { $0.hasPrefix("--snapshot") || $0 == "--follow-test" || $0 == "--diagnose" }
+        if !isDebugRun, let other = Self.otherRunningInstance() {
+            other.activate()
+            NSApp.terminate(nil)
+            return
+        }
+
         promptController = PromptController()
         library = LibraryModel(store: ScriptLibrary(directory: ScriptLibrary.defaultDirectory()))
         promptController.library = library
@@ -52,6 +62,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else if !Preferences.shared.hasCompletedOnboarding {
             libraryWindow.showOnboarding()
         }
+    }
+
+    /// Another copy of Prompter already running, launched from a different location.
+    private static func otherRunningInstance() -> NSRunningApplication? {
+        guard let id = Bundle.main.bundleIdentifier else { return nil }
+        return NSRunningApplication.runningApplications(withBundleIdentifier: id)
+            .first { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

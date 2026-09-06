@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import PrompterCore
 
 /// Looks at the latest GitHub release and tells the user when there's a newer Prompter.
 /// Deliberately small: one unauthenticated GET, no downloads in the background, no
@@ -8,12 +9,7 @@ import Observation
 @MainActor
 @Observable
 final class UpdateChecker {
-    struct Release: Equatable {
-        let version: String
-        let notes: String
-        let pageURL: URL
-        let downloadURL: URL?
-    }
+    typealias Release = ReleaseInfo
 
     static let releasesAPI = URL(string: "https://api.github.com/repos/niel-cody/prompter/releases/latest")!
     static let checkInterval: TimeInterval = 24 * 60 * 60
@@ -39,7 +35,7 @@ final class UpdateChecker {
         guard preferences.checkForUpdatesAutomatically else { return }
         let last = preferences.lastUpdateCheck ?? .distantPast
         guard Date().timeIntervalSince(last) >= Self.checkInterval else { return }
-        if let release = await fetchLatest(), Self.isNewer(release.version, than: currentVersion),
+        if let release = await fetchLatest(), ReleaseFeed.isNewer(release.version, than: currentVersion),
            release.version != preferences.skippedUpdateVersion {
             available = release
         }
@@ -55,7 +51,7 @@ final class UpdateChecker {
                   message: "Prompter couldn't reach GitHub. Check your connection and try again.")
             return
         }
-        if Self.isNewer(release.version, than: currentVersion) {
+        if ReleaseFeed.isNewer(release.version, than: currentVersion) {
             available = release
             offer(release)
         } else {
@@ -106,47 +102,10 @@ final class UpdateChecker {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
             preferences.lastUpdateCheck = Date()
-            return Self.parse(data)
+            return ReleaseFeed.parseLatest(data)
         } catch {
             return nil
         }
     }
 
-    static func parse(_ data: Data) -> Release? {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tag = json["tag_name"] as? String,
-              let page = (json["html_url"] as? String).flatMap(URL.init(string:))
-        else { return nil }
-        let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
-        let notes = (json["body"] as? String ?? "").replacingOccurrences(of: "\r\n", with: "\n")
-        let assets = json["assets"] as? [[String: Any]] ?? []
-        let zip = assets.first { ($0["name"] as? String)?.hasSuffix(".zip") == true }
-        let download = (zip?["browser_download_url"] as? String).flatMap(URL.init(string:))
-        return Release(version: version, notes: Self.plainNotes(notes), pageURL: page, downloadURL: download)
-    }
-
-    /// Markdown → readable plain text for an alert.
-    static func plainNotes(_ md: String) -> String {
-        md.split(separator: "\n", omittingEmptySubsequences: false)
-            .map { line -> String in
-                var s = String(line)
-                s = s.replacingOccurrences(of: #"^\s*[-*]\s+"#, with: "• ", options: .regularExpression)
-                s = s.replacingOccurrences(of: #"^#+\s*"#, with: "", options: .regularExpression)
-                s = s.replacingOccurrences(of: #"(\*\*|__|`)"#, with: "", options: .regularExpression)
-                return s
-            }
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// Semantic-version comparison on the numeric components.
-    static func isNewer(_ a: String, than b: String) -> Bool {
-        func parts(_ v: String) -> [Int] { v.split(separator: ".").map { Int($0.filter(\.isNumber)) ?? 0 } }
-        let x = parts(a), y = parts(b)
-        for i in 0..<max(x.count, y.count) {
-            let l = i < x.count ? x[i] : 0, r = i < y.count ? y[i] : 0
-            if l != r { return l > r }
-        }
-        return false
-    }
 }
