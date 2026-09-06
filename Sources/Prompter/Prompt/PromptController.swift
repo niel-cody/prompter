@@ -156,8 +156,9 @@ final class PromptController {
     /// The user's last position on this display, if it still fits; otherwise under the camera.
     private func restoredOrDefaultFrame() -> NSRect {
         let screen = CameraPlacement.preferredScreen()
-        if let saved = preferences.panelFrame(for: screen), screen.visibleFrame.intersects(saved),
-           saved.width >= 320, saved.height >= 110 {
+        if let saved = preferences.panelFrame(for: screen),
+           PromptPlacement.isUsable(saved, on: CameraPlacement.geometry(of: screen),
+                                    minSize: CGSize(width: 320, height: 110)) {
             return saved
         }
         return placementFrame()
@@ -204,6 +205,6 @@ final class PromptController {
 
     private func placementFrame() -> NSRect {
         let size = panel?.frame.size ?? Self.defaultSize
-        return CameraPlacement(screen: CameraPlacement.preferredScreen()).defaultFrame(size: size)
+        return CameraPlacement.defaultFrame(size: size, on: CameraPlacement.preferredScreen())
     }
 }

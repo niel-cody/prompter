@@ -143,7 +143,7 @@ enum DebugSnapshot {
             return "snapshot: no panel"
         }
         let screen = panel.screen ?? NSScreen.main!
-        let placement = CameraPlacement(screen: screen)
+        let placement = CameraPlacement.placement(for: screen)
         var lines: [String] = []
         lines.append("screen.frame        \(screen.frame)")
         lines.append("screen.visibleFrame \(screen.visibleFrame)")

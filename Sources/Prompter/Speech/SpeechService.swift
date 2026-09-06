@@ -22,11 +22,19 @@ final class SpeechService {
         case idle
         case requestingPermission
         case preparing
+        /// First run on a Mac downloads Apple's speech model. Can take a minute on slow wifi,
+        /// so the prompt says so rather than sitting on "Preparing…".
+        case downloadingModel(Double)
         case listening
         case denied
         case unavailable(String)
 
-        var isActive: Bool { self == .preparing || self == .listening || self == .requestingPermission }
+        var isActive: Bool {
+            switch self {
+            case .preparing, .listening, .requestingPermission, .downloadingModel: true
+            case .idle, .denied, .unavailable: false
+            }
+        }
     }
 
     private(set) var state: State = .idle
@@ -68,7 +76,21 @@ final class SpeechService {
             )
             if await AssetInventory.status(forModules: [transcriber]) != .installed,
                let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
+                state = .downloadingModel(0)
+                let progress = request.progress
+                let watcher = Task { [weak self] in
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .milliseconds(250))
+                        let fraction = progress.fractionCompleted
+                        await MainActor.run {
+                            guard let self, case .downloadingModel = self.state else { return }
+                            self.state = .downloadingModel(fraction)
+                        }
+                    }
+                }
+                defer { watcher.cancel() }
                 try await request.downloadAndInstall()
+                state = .preparing
             }
 
             let context = AnalysisContext()

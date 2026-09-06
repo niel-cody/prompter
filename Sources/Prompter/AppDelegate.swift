@@ -22,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = StatusItemController(prompt: promptController, updates: updates)
         statusItem.openLibrary = { [weak self] in self?.libraryWindow.show() }
         statusItem.openSettings = { [weak self] in self?.settingsWindow.show() }
-        if !args.contains(where: { $0.hasPrefix("--snapshot") || $0 == "--follow-test" }) {
+        if !args.contains(where: { $0.hasPrefix("--snapshot") || $0 == "--follow-test" || $0 == "--diagnose" }) {
             updates.startAutomaticChecks()
         }
         hotKeys = HotKeyCenter()
@@ -37,7 +37,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeys.register(.fontLarger) { Preferences.shared.adjustFontSize(by: 2) }
         hotKeys.register(.fontSmaller) { Preferences.shared.adjustFontSize(by: -2) }
 
-        if let i = args.firstIndex(of: "--follow-test"), i + 1 < args.count {
+        if args.contains("--diagnose") {
+            Diagnostics.run(prompt: promptController, hotKeys: hotKeys)
+        } else if let i = args.firstIndex(of: "--follow-test"), i + 1 < args.count {
             DebugSnapshot.runFollowTest(prompt: promptController, audioPath: args[i + 1])
         } else if let i = args.firstIndex(of: "--snapshot-window"), i + 2 < args.count {
             DebugSnapshot.runWindow(args[i + 1], library: libraryWindow, settings: settingsWindow, model: library, outputPath: args[i + 2])

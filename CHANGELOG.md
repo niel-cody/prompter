@@ -5,6 +5,21 @@ version becomes its GitHub release notes.
 
 ## [Unreleased]
 
+## [0.9.1] — 2026-09-05
+
+Ready to install and demo on a second Mac.
+
+- Universal build: Prompter now runs natively on Apple silicon and on Intel Macs.
+- One-line installer that fetches the release and clears the quarantine flag, so the app
+  opens without a Gatekeeper detour.
+- The prompt now says "Downloading speech model…" with progress the first time Voice Follow
+  runs on a Mac, instead of appearing to hang on "Preparing…".
+- Camera and notch placement moved into tested code, including MacBook notch geometry,
+  external displays, displays that aren't at the origin, and auto-hidden menu bars.
+- A remembered prompt position is only restored if it still fits the display it's on.
+- `Prompter --diagnose` prints OS, hardware, displays, camera placement, microphone and
+  speech-model status: run it on any Mac you plan to present from.
+
 ## [0.9.0] — 2026-09-05
 
 First shareable build.
@@ -20,6 +35,5 @@ First shareable build.
 - Menu-bar app with global shortcuts that work over Zoom, Teams, Chrome and Keynote.
 - Multi-display aware; remembers the prompt's position per display.
 
-**First open:** this build isn't notarized yet, so macOS will refuse to open it by double-click.
-Right-click `Prompter.app` → **Open** once (or: System Settings → Privacy & Security → Open Anyway).
-Requires macOS 26 on Apple silicon.
+**Installing:** see the README. Prompter isn't notarized by Apple yet, so a build downloaded
+through a browser is blocked by Gatekeeper; the installer avoids that. Requires macOS 26.

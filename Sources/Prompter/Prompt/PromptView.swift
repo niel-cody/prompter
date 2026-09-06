@@ -103,6 +103,9 @@ struct PromptView: View {
             ListeningPulse(tint: appearance.theme.foreground)
         case .preparing, .requestingPermission:
             statusLabel("Preparing…", symbol: "waveform")
+        case .downloadingModel(let fraction):
+            statusLabel(fraction > 0.01 ? "Downloading speech model… \(Int(fraction * 100))%" : "Downloading speech model…",
+                        symbol: "arrow.down.circle")
         case .denied:
             statusLabel("Microphone access needed", symbol: "mic.slash")
         case .unavailable:

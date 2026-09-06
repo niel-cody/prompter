@@ -98,10 +98,34 @@ Two ideas shape the design:
 
 ## Install
 
-Grab `Prompter-<version>.zip` from the [latest release](https://github.com/niel-cody/prompter/releases/latest),
-unzip, drag `Prompter.app` to Applications. Until builds are notarized, the first open is
-**right-click → Open**. Prompter checks GitHub once a day for a new version (menu bar →
-*Check for Updates…*; can be turned off in Settings → Privacy).
+```bash
+curl -fsSL https://raw.githubusercontent.com/niel-cody/prompter/main/Scripts/install.sh | bash
+```
+
+That fetches the latest release, puts it in `/Applications`, and opens it. Requires **macOS 26**
+(the speech engine it uses doesn't exist earlier); Apple silicon and Intel are both supported.
+
+Prompter isn't notarized by Apple yet. If you download the zip from the
+[releases page](https://github.com/niel-cody/prompter/releases/latest) with a browser instead,
+macOS marks it as quarantined and refuses to open it — and on macOS 15 and later, right-clicking
+**Open** no longer gets around that. Either use the command above, or clear the flag yourself:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Prompter.app
+```
+
+Prompter checks GitHub once a day for a new version (menu bar → *Check for Updates…*; switch it
+off in Settings → Privacy).
+
+### Before you present on a new Mac
+
+```bash
+/Applications/Prompter.app/Contents/MacOS/Prompter --diagnose
+```
+
+Prints the OS, displays and camera placement, microphone access and whether Apple's speech
+model is downloaded. The model downloads on first use, so run Voice Follow once on wifi
+before you need it.
 
 ## Releasing
 
