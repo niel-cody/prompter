@@ -16,6 +16,8 @@ struct HotKey: Hashable {
     static let endSession = HotKey(keyCode: UInt32(kVK_ANSI_Period), modifiers: UInt32(cmdKey | optionKey))
     static let fontLarger = HotKey(keyCode: UInt32(kVK_ANSI_Equal), modifiers: UInt32(cmdKey | optionKey))
     static let fontSmaller = HotKey(keyCode: UInt32(kVK_ANSI_Minus), modifiers: UInt32(cmdKey | optionKey))
+    /// Meeting capture: keep the last stretch of what was just said.
+    static let markInsight = HotKey(keyCode: UInt32(kVK_ANSI_I), modifiers: UInt32(cmdKey | optionKey))
 }
 
 /// Registers system-wide hot keys with Carbon's `RegisterEventHotKey`, which works without

@@ -5,9 +5,11 @@ import SwiftUI
 final class SettingsWindowController {
     private var window: NSWindow?
     private let prompt: PromptController
+    private let meetings: MeetingController
 
-    init(prompt: PromptController) {
+    init(prompt: PromptController, meetings: MeetingController) {
         self.prompt = prompt
+        self.meetings = meetings
     }
 
     func show() {
@@ -18,7 +20,7 @@ final class SettingsWindowController {
     }
 
     private func makeWindow() -> NSWindow {
-        let host = NSHostingController(rootView: SettingsView(prompt: prompt, preferences: Preferences.shared))
+        let host = NSHostingController(rootView: SettingsView(prompt: prompt, meetings: meetings, preferences: Preferences.shared))
         let window = NSWindow(contentViewController: host)
         window.title = "Prompter Settings"
         window.styleMask = [.titled, .closable]

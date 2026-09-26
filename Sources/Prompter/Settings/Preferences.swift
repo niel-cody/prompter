@@ -21,6 +21,8 @@ final class Preferences {
         var checkForUpdatesAutomatically = true
         var lastUpdateCheck: Date? = nil
         var skippedUpdateVersion: String? = nil
+        /// Where meeting notes are mirrored as Markdown; nil means next to the JSON.
+        var meetingNotesDirectory: String? = nil
     }
 
     private static let key = "Prompter.preferences"
@@ -72,6 +74,10 @@ final class Preferences {
     var skippedUpdateVersion: String? {
         get { stored.skippedUpdateVersion }
         set { stored.skippedUpdateVersion = newValue }
+    }
+    var meetingNotesDirectory: String? {
+        get { stored.meetingNotesDirectory }
+        set { stored.meetingNotesDirectory = newValue }
     }
     var classicScrollSpeed: Double {
         get { stored.classicScrollSpeed }

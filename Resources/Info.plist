@@ -30,6 +30,8 @@
 	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Meeting notes capture the other side of a call from what your Mac is playing, so the transcript can tell you from everyone else. Audio is transcribed on your Mac and never stored.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Prompter listens while you present so the prompt can follow what you actually say. Audio is processed on your Mac and never stored.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

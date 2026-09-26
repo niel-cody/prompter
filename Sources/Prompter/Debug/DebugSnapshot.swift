@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit
 import SwiftUI
 import PrompterCore
@@ -8,6 +9,9 @@ import PrompterCore
 @MainActor
 private final class FollowTrace {
     var lastIndex = -1
+    var listeningSince: Date?
+    var seenIDs = Set<UUID>()
+    var seenCaptures = 0
 }
 
 @MainActor
@@ -48,16 +52,86 @@ enum DebugSnapshot {
         }
     }
 
-    /// `--snapshot-window library|settings|onboarding out.png`: shows the window, captures it.
+    /// `--meeting-test mic.aiff [system.aiff]`: runs recordings through the meeting capture
+    /// pipeline (AVAudioEngine → SpeechAnalyzer → transcript → speaker labels → insight
+    /// detector → Markdown) into a throwaway store and prints the resulting Markdown. One
+    /// file is an in-person meeting; two are a call, with the second standing in for the
+    /// system-audio tap.
+    static func runMeetingTest(audioPath: String, systemAudioPath: String?) {
+        let url = URL(fileURLWithPath: audioPath)
+        let systemURL = systemAudioPath.map { URL(fileURLWithPath: $0) }
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("PrompterMeetingTest-\(UUID().uuidString)")
+        let meetings = MeetingController(store: MeetingStore(directory: tmp))
+        meetings.testFiles = (microphone: url, system: systemURL)
+        func length(_ u: URL) -> TimeInterval { (try? AVAudioFile(forReading: u)).map { Double($0.length) / $0.processingFormat.sampleRate } ?? 60 }
+        let duration = max(length(url), systemURL.map(length) ?? 0)
+        let note = meetings.create(template: .pitchFeedback, title: "Meeting test")
+        meetings.modify(note.id) { $0.isInPerson = systemURL == nil; $0.attendees = "Priya, Sam" }
+        let trace = FollowTrace()
+        meetings.start(note.id)
+        print("audio \(String(format: "%.1f", duration))s; \(systemURL == nil ? "in person" : "call (mic + system)"); store \(tmp.path)")
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+            Task { @MainActor in
+                let systemReady = systemURL == nil || meetings.systemSpeech.state == .listening
+                if trace.listeningSince == nil, meetings.speech.state == .listening, systemReady { trace.listeningSince = Date(); print("listening") }
+                guard let current = meetings.note(id: note.id) else { return }
+                // Segments interleave by time, so print whatever is new by id rather than by count.
+                for segment in current.transcript where !trace.seenIDs.contains(segment.id) {
+                    trace.seenIDs.insert(segment.id)
+                    let who = current.speakerLabel(of: segment) + (segment.speakerIsSuggested ? "?" : "")
+                    print("\(MeetingMarkdown.clock(segment.start)) [\(who)] \(segment.text)")
+                }
+                for capture in current.captures.dropFirst(trace.seenCaptures) {
+                    print("      ⚑ \(capture.category.rawValue) (\(capture.sentiment.rawValue)) \(capture.speaker ?? "-"): \(capture.text)")
+                }
+                trace.seenCaptures = current.captures.count
+                if trace.lastIndex < 0, let since = trace.listeningSince, Date().timeIntervalSince(since) > duration + 4 {
+                    trace.lastIndex = 0
+                    meetings.stop()
+                    let final = meetings.note(id: note.id)
+                    print("\nFINISHED: \(final?.transcript.count ?? 0) segments, speakers \(final?.speakers ?? []), \(final?.captures.count ?? 0) suggested captures")
+                    print(String(repeating: "-", count: 60))
+                    print(meetings.markdown(for: note.id) ?? "")
+                    NSApp.terminate(nil)
+                }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 120) {
+            timer.invalidate()
+            print("meeting-test timed out; speech state \(meetings.speech.state)")
+            NSApp.terminate(nil)
+        }
+    }
+
+    /// `--snapshot-window library|settings|onboarding|meetings out.png`: shows the window, captures it.
     static func runWindow(_ which: String, library: LibraryWindowController, settings: SettingsWindowController,
-                          model: LibraryModel, outputPath: String) {
+                          meetings: MeetingsWindowController, model: LibraryModel, meetingModel: MeetingController, outputPath: String) {
         let expectedTitle: String
+        var cleanup: () -> Void = {}
         switch which {
         case "library":
             expectedTitle = "Prompter"
             if model.documents.isEmpty { model.createNew(title: "Sample: inventory update", text: SampleScript.text) }
             model.selectedID = model.documents.first?.id
             library.show()
+        case "meetings":
+            expectedTitle = "Meetings"
+            // A throwaway note with something in it, removed again before exit.
+            let sample = meetingModel.create(template: .pitchFeedback, title: "Snapshot: reorder points pitch")
+            meetingModel.modify(sample.id) { note in
+                note.attendees = "Sam, Priya"
+                note.notes = "Priya nodded at the forecast slide."
+                note.transcript = [
+                    TranscriptSegment(start: 0, end: 4, text: "Thanks for walking us through the reorder point idea."),
+                    TranscriptSegment(start: 5, end: 12, text: "I like the direction a lot, but I'm worried about the migration."),
+                ]
+                note.captures = [
+                    Capture(category: .feedback, text: "I like the direction a lot", at: 5, sentiment: .positive, source: .detected, isKept: true),
+                    Capture(category: .objection, text: "I'm worried about the migration", at: 8, sentiment: .negative, source: .detected, isKept: false),
+                ]
+            }
+            cleanup = { meetingModel.delete(sample.id) }
+            meetings.show()
         case "settings": expectedTitle = "Prompter Settings"; settings.show()
         case "onboarding": expectedTitle = "Welcome to Prompter"; library.showOnboarding()
         default: print("unknown window \(which)"); NSApp.terminate(nil); return
@@ -74,6 +148,7 @@ enum DebugSnapshot {
             } else {
                 print("window snapshot: no window")
             }
+            cleanup()
             NSApp.terminate(nil)
         }
     }

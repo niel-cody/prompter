@@ -7,6 +7,8 @@ import Speech
 //   prompter-cli parse  <file|-> [style]        phrase + pacing breakdown
 //   prompter-cli follow <script> <audio-file>    run on-device recognition over a recording
 //                                                and trace the matcher's decisions
+//   prompter-cli insights <transcript|->         what the meeting insight detector flags,
+//                                                sentence by sentence, and why
 
 func readText(_ source: String) throws -> String {
     if source == "-" {
@@ -31,6 +33,24 @@ func runParse(_ args: [String]) throws {
         elapsed += dur + pause
     }
     print("\n\(script.phrases.count) phrases, \(script.wordCount) words, ~\(Int(elapsed.rounded())) s at \(style.displayName) (\(Int(profile.wordsPerMinute)) wpm)")
+}
+
+func runInsights(_ args: [String]) throws {
+    guard let source = args.first else { print("usage: prompter-cli insights <transcript|->"); exit(1) }
+    let detector = InsightDetector()
+    var counts: [CaptureCategory: Int] = [:]
+    var total = 0
+    for sentence in InsightDetector.sentences(in: try readText(source)) {
+        total += 1
+        if let d = detector.detect(sentence) {
+            counts[d.category, default: 0] += 1
+            print(String(format: "%-9@ %-8@ [%@]  %@", d.category.rawValue, d.sentiment.rawValue, d.cue, d.text))
+        } else {
+            print("          \(detector.sentiment(of: sentence).rawValue.padding(toLength: 8, withPad: " ", startingAt: 0))        \(sentence)")
+        }
+    }
+    let summary = CaptureCategory.allCases.compactMap { c in counts[c].map { "\($0) \(c.rawValue)" } }
+    print("\n\(total) sentences; flagged: \(summary.isEmpty ? "none" : summary.joined(separator: ", "))")
 }
 
 @MainActor
@@ -103,8 +123,10 @@ case "follow":
     try await runFollow(Array(argv.dropFirst()))
 case "parse":
     try runParse(Array(argv.dropFirst()))
+case "insights":
+    try runInsights(Array(argv.dropFirst()))
 case .some(let first) where first != "-h" && first != "--help":
     try runParse(argv)
 default:
-    print("usage: prompter-cli parse <file|-> [style] | follow <script> <audio-file>")
+    print("usage: prompter-cli parse <file|-> [style] | follow <script> <audio-file> | insights <transcript|->")
 }

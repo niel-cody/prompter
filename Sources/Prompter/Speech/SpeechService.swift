@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreAudio
 import Foundation
 import Observation
 import Speech
@@ -12,9 +13,24 @@ struct TranscriptUpdate: Sendable {
     let end: TimeInterval
 }
 
-/// Live, on-device speech recognition from the default microphone using macOS 26's
-/// `SpeechAnalyzer`. Audio is streamed straight from the input tap into the analyzer and
-/// never written anywhere.
+/// Where a `SpeechService` gets its audio.
+enum AudioSource: Equatable {
+    /// The default microphone. With echo cancellation, what the Mac is playing (the other
+    /// side of a call) is subtracted so it isn't heard twice in a two-channel capture.
+    case microphone(echoCancelled: Bool)
+    /// A recording standing in for the microphone (debug and tests).
+    case file(URL)
+    /// Whatever the Mac is playing: the remote participants of a call. See `SystemAudioTap`.
+    case systemAudio
+
+    var needsMicrophonePermission: Bool {
+        if case .microphone = self { return true }
+        return false
+    }
+}
+
+/// Live, on-device speech recognition using macOS 26's `SpeechAnalyzer`. Audio is streamed
+/// straight from the source into the analyzer and never written anywhere.
 @MainActor
 @Observable
 final class SpeechService {
@@ -39,8 +55,13 @@ final class SpeechService {
 
     private(set) var state: State = .idle
     var onTranscript: ((TranscriptUpdate) -> Void)?
+    var source: AudioSource = .microphone(echoCancelled: false)
+    /// When the audio clock behind transcript timestamps started, for lining up channels.
+    private(set) var audioStartedAt: Date?
 
     private var engine: AVAudioEngine?
+    private var tap: SystemAudioTap?
+    private var outputWatcher: AudioObjectPropertyListenerBlock?
     private var analyzer: SpeechAnalyzer?
     private var transcriber: SpeechTranscriber?
     private var inputContinuation: AsyncStream<AnalyzerInput>.Continuation?
@@ -50,11 +71,17 @@ final class SpeechService {
     /// Words the recogniser should be biased towards: the script's own vocabulary.
     var contextualVocabulary: [String] = []
     /// Debug: stream this file through the live pipeline instead of the microphone.
-    var testAudioFile: URL?
+    var testAudioFile: URL? {
+        get { if case .file(let url) = source { return url } else { return nil } }
+        set { source = newValue.map { .file($0) } ?? .microphone(echoCancelled: false) }
+    }
+
+    /// Loudest sample heard from system audio, for telling silence from a denied tap.
+    var systemAudioPeak: Float { tap?.peakLevel ?? 0 }
 
     func start() async {
         guard !state.isActive else { return }
-        if testAudioFile == nil {
+        if source.needsMicrophonePermission {
             state = .requestingPermission
             let granted = await AVCaptureDevice.requestAccess(for: .audio)
             guard granted else { state = .denied; return }
@@ -125,7 +152,12 @@ final class SpeechService {
                 }
             }
 
-            try startAudioEngine(analyzerFormat: format, continuation: continuation)
+            switch source {
+            case .systemAudio:
+                try startSystemAudio(analyzerFormat: format, continuation: continuation)
+            case .microphone, .file:
+                try startAudioEngine(analyzerFormat: format, continuation: continuation)
+            }
             try await analyzer.start(inputSequence: stream)
             state = .listening
             retriesLeft = 2
@@ -140,6 +172,10 @@ final class SpeechService {
         engine?.inputNode.removeTap(onBus: 0)
         engine?.stop()
         engine = nil
+        tap?.stop()
+        tap = nil
+        if let outputWatcher { SystemAudioTap.stopWatchingOutputChanges(outputWatcher) }
+        outputWatcher = nil
         if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
         configObserver = nil
         inputContinuation?.finish()
@@ -149,6 +185,7 @@ final class SpeechService {
         transcriber = nil
         resultsTask?.cancel()
         resultsTask = nil
+        audioStartedAt = nil
         Task { try? await analyzer?.finalizeAndFinishThroughEndOfInput() }
         if state != .denied, case .unavailable = state {} else { state = .idle }
     }
@@ -173,45 +210,17 @@ final class SpeechService {
 
     // MARK: - Audio
 
-    private func startAudioEngine(analyzerFormat: AVAudioFormat, continuation: AsyncStream<AnalyzerInput>.Continuation) throws {
-        let engine = AVAudioEngine()
-        let source: AVAudioNode
-        let sourceFormat: AVAudioFormat
-        var player: AVAudioPlayerNode?
-        var file: AVAudioFile?
-
-        if let testAudioFile {
-            // Same graph as the microphone path, fed from a file, with the speakers muted.
-            let f = try AVAudioFile(forReading: testAudioFile)
-            let p = AVAudioPlayerNode()
-            engine.attach(p)
-            engine.connect(p, to: engine.mainMixerNode, format: f.processingFormat)
-            engine.mainMixerNode.outputVolume = 0
-            source = p
-            sourceFormat = f.processingFormat
-            player = p
-            file = f
-        } else {
-            let input = engine.inputNode
-            let inputFormat = input.outputFormat(forBus: 0)
-            guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
-                throw NSError(domain: "Prompter.Speech", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone is connected."])
-            }
-            source = input
-            sourceFormat = inputFormat
-        }
-
+    /// A converter from the source format into the analyzer's, as a realtime-safe closure.
+    nonisolated private static func makeConverter(from sourceFormat: AVAudioFormat, to analyzerFormat: AVAudioFormat) throws
+        -> @Sendable (AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
         guard let converter = AVAudioConverter(from: sourceFormat, to: analyzerFormat) else {
-            throw NSError(domain: "Prompter.Speech", code: 2, userInfo: [NSLocalizedDescriptionKey: "Couldn't convert microphone audio."])
+            throw NSError(domain: "Prompter.Speech", code: 2, userInfo: [NSLocalizedDescriptionKey: "Couldn't convert audio for recognition."])
         }
         let ratio = analyzerFormat.sampleRate / sourceFormat.sampleRate
-
-        // The tap runs on a realtime audio thread. It must be explicitly @Sendable so it is not
-        // inferred to be MainActor-isolated along with the rest of this class.
-        source.installTap(onBus: 0, bufferSize: 4096, format: sourceFormat) { @Sendable buffer, _ in
+        return { @Sendable buffer in
             nonisolated(unsafe) let buffer = buffer
             let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 16
-            guard let out = AVAudioPCMBuffer(pcmFormat: analyzerFormat, frameCapacity: capacity) else { return }
+            guard let out = AVAudioPCMBuffer(pcmFormat: analyzerFormat, frameCapacity: capacity) else { return nil }
             var error: NSError?
             nonisolated(unsafe) var consumed = false
             let status = converter.convert(to: out, error: &error) { _, outStatus in
@@ -223,8 +232,59 @@ final class SpeechService {
                 outStatus.pointee = .haveData
                 return buffer
             }
-            guard status != .error, out.frameLength > 0 else { return }
-            continuation.yield(AnalyzerInput(buffer: out))
+            guard status != .error, out.frameLength > 0 else { return nil }
+            return out
+        }
+    }
+
+    private func startAudioEngine(analyzerFormat: AVAudioFormat, continuation: AsyncStream<AnalyzerInput>.Continuation) throws {
+        let engine = AVAudioEngine()
+        let source: AVAudioNode
+        let sourceFormat: AVAudioFormat
+        var player: AVAudioPlayerNode?
+        var file: AVAudioFile?
+
+        switch self.source {
+        case .file(let url):
+            // Same graph as the microphone path, fed from a file, with the speakers muted.
+            let f = try AVAudioFile(forReading: url)
+            let p = AVAudioPlayerNode()
+            engine.attach(p)
+            engine.connect(p, to: engine.mainMixerNode, format: f.processingFormat)
+            engine.mainMixerNode.outputVolume = 0
+            source = p
+            sourceFormat = f.processingFormat
+            player = p
+            file = f
+        case .microphone(let echoCancelled):
+            let input = engine.inputNode
+            if echoCancelled {
+                // Apple's voice-processing unit subtracts what the Mac is playing, so the
+                // remote side of a call isn't transcribed on both channels. Don't let it
+                // duck other apps' audio: that would turn the meeting down.
+                do {
+                    try input.setVoiceProcessingEnabled(true)
+                    input.voiceProcessingOtherAudioDuckingConfiguration =
+                        AVAudioVoiceProcessingOtherAudioDuckingConfiguration(enableAdvancedDucking: false, duckingLevel: .min)
+                } catch {
+                    NSLog("Prompter: echo cancellation unavailable (\(error.localizedDescription)); using the plain microphone")
+                }
+            }
+            let inputFormat = input.outputFormat(forBus: 0)
+            guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
+                throw NSError(domain: "Prompter.Speech", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone is connected."])
+            }
+            source = input
+            sourceFormat = inputFormat
+        case .systemAudio:
+            preconditionFailure("system audio uses startSystemAudio")
+        }
+
+        let convert = try Self.makeConverter(from: sourceFormat, to: analyzerFormat)
+        // The tap runs on a realtime audio thread. It must be explicitly @Sendable so it is not
+        // inferred to be MainActor-isolated along with the rest of this class.
+        source.installTap(onBus: 0, bufferSize: 4096, format: sourceFormat) { @Sendable buffer, _ in
+            if let out = convert(buffer) { continuation.yield(AnalyzerInput(buffer: out)) }
         }
 
         // A microphone being unplugged (or the default input changing) invalidates the tap.
@@ -237,10 +297,29 @@ final class SpeechService {
         engine.prepare()
         try engine.start()
         self.engine = engine
+        audioStartedAt = Date()
 
         if let player, let file {
             player.scheduleFile(file, at: nil)
             player.play()
+        }
+    }
+
+    private func startSystemAudio(analyzerFormat: AVAudioFormat, continuation: AsyncStream<AnalyzerInput>.Continuation) throws {
+        let tap = SystemAudioTap()
+        // The tap's format is only known once it exists, so convert lazily on the first buffer.
+        nonisolated(unsafe) var convert: (@Sendable (AVAudioPCMBuffer) -> AVAudioPCMBuffer?)?
+        try tap.start { @Sendable buffer in
+            if convert == nil {
+                convert = try? Self.makeConverter(from: buffer.format, to: analyzerFormat)
+            }
+            if let out = convert?(buffer) { continuation.yield(AnalyzerInput(buffer: out)) }
+        }
+        self.tap = tap
+        audioStartedAt = Date()
+        // Output moved (AirPods on, HDMI in): tap the new device.
+        outputWatcher = SystemAudioTap.watchOutputChanges { [weak self] in
+            Task { @MainActor in self?.handleConfigurationChange() }
         }
     }
 

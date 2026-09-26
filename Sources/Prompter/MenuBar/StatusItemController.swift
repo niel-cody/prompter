@@ -6,12 +6,16 @@ import PrompterCore
 final class StatusItemController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let prompt: PromptController
+    private let meetings: MeetingController
     private let updates: UpdateChecker
     var openLibrary: (() -> Void)?
+    var openMeetings: (() -> Void)?
+    var newMeeting: ((MeetingTemplate) -> Void)?
     var openSettings: (() -> Void)?
 
-    init(prompt: PromptController, updates: UpdateChecker) {
+    init(prompt: PromptController, meetings: MeetingController, updates: UpdateChecker) {
         self.prompt = prompt
+        self.meetings = meetings
         self.updates = updates
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
@@ -90,6 +94,27 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         modeItem.submenu = modeMenu
         menu.addItem(modeItem)
         menu.addItem(.separator())
+
+        // Meeting capture: the other half of a pitch is what the room says back.
+        if let active = meetings.active {
+            let title = active.title.isEmpty ? "meeting" : active.title
+            menu.addItem(item("Stop Listening to \"\(title)\"", #selector(stopMeeting), key: ""))
+            menu.addItem(item("Mark Insight", #selector(markInsight), key: "i", modifiers: [.command, .option]))
+        } else {
+            let newMeetingItem = NSMenuItem(title: "New Meeting Notes", action: nil, keyEquivalent: "")
+            let templates = NSMenu()
+            for template in MeetingTemplate.builtIn {
+                let mi = NSMenuItem(title: template.name, action: #selector(newMeetingFromTemplate(_:)), keyEquivalent: "")
+                mi.target = self
+                mi.representedObject = template.id
+                mi.toolTip = template.summary
+                templates.addItem(mi)
+            }
+            newMeetingItem.submenu = templates
+            menu.addItem(newMeetingItem)
+        }
+        menu.addItem(item("Meetings…", #selector(openMeetingsWindow), key: "m"))
+        menu.addItem(.separator())
         menu.addItem(item("Open Prompter", #selector(openLibraryWindow), key: "o"))
         menu.addItem(item("Settings…", #selector(openSettingsWindow), key: ","))
         let check = item("Check for Updates…", #selector(checkForUpdates), key: "")
@@ -118,6 +143,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if let raw = sender.representedObject as? String, let mode = ReadingMode(rawValue: raw) { prompt.setMode(mode) }
     }
     @objc private func openLibraryWindow() { openLibrary?() }
+    @objc private func openMeetingsWindow() { openMeetings?() }
+    @objc private func stopMeeting() { meetings.stop() }
+    @objc private func markInsight() { meetings.markInsight() }
+    @objc private func newMeetingFromTemplate(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String, let template = MeetingTemplate.builtIn(id: id) else { return }
+        newMeeting?(template)
+    }
     @objc private func checkForUpdates() { Task { await updates.checkNow() } }
     @objc private func offerUpdate() { updates.offerAvailable() }
     @objc private func openSettingsWindow() { openSettings?() }

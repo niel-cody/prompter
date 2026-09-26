@@ -5,10 +5,11 @@ import PrompterCore
 
 struct SettingsView: View {
     var prompt: PromptController
+    var meetings: MeetingController
     var preferences: Preferences
 
     private enum Pane: String, CaseIterable, Identifiable {
-        case general = "General", prompt = "Prompt", shortcuts = "Shortcuts", privacy = "Privacy"
+        case general = "General", prompt = "Prompt", meetings = "Meetings", shortcuts = "Shortcuts", privacy = "Privacy"
         var id: String { rawValue }
     }
 
@@ -21,7 +22,7 @@ struct SettingsView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 320)
+            .frame(width: 400)
             .padding(.top, 14)
             .padding(.bottom, 6)
 
@@ -29,6 +30,7 @@ struct SettingsView: View {
                 switch pane {
                 case .general: GeneralSettings(prompt: prompt, preferences: preferences)
                 case .prompt: PromptSettings(preferences: preferences)
+                case .meetings: MeetingSettings(meetings: meetings, preferences: preferences)
                 case .shortcuts: ShortcutsSettings()
                 case .privacy: PrivacySettings()
                 }
@@ -102,6 +104,57 @@ private struct PromptSettings: View {
     }
 }
 
+private struct MeetingSettings: View {
+    var meetings: MeetingController
+    var preferences: Preferences
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("Markdown notes") {
+                    Text(meetings.markdownDirectory.path(percentEncoded: false).replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                        .multilineTextAlignment(.trailing)
+                }
+                HStack {
+                    Button("Choose Folder…") { chooseFolder() }
+                    Button("Use Default") {
+                        preferences.meetingNotesDirectory = nil
+                        meetings.setMarkdownDirectory(MeetingStore.defaultDirectory())
+                        preferences.meetingNotesDirectory = nil
+                    }
+                    .disabled(preferences.meetingNotesDirectory == nil)
+                    Spacer()
+                    Button("Show in Finder") { NSWorkspace.shared.open(meetings.markdownDirectory) }
+                }
+                Text("Every meeting is saved as JSON in Application Support and mirrored as a Markdown file with front matter here. Point this at an Obsidian vault or a notes folder and the files just appear.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Section {
+                Text("Nothing joins your calls. Prompter listens through the microphone with the same on-device recogniser as Voice Follow. To capture the other side of a video call, use speakers or a mic that hears them; audio is never written to disk.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .frame(height: 340)
+    }
+
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Use Folder"
+        panel.message = "Meeting notes will be written here as Markdown."
+        panel.directoryURL = meetings.markdownDirectory
+        NSApp.activate()
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        meetings.setMarkdownDirectory(url)
+    }
+}
+
 private struct ShortcutsSettings: View {
     private let rows: [(String, String)] = [
         ("Prompt Clipboard", "⌥⌘V"),
@@ -111,6 +164,7 @@ private struct ShortcutsSettings: View {
         ("Previous / Next paragraph", "⌥⌘↑ / ⌥⌘↓"),
         ("Smaller / Larger text", "⌥⌘− / ⌥⌘="),
         ("End session & review", "⌥⌘."),
+        ("Mark insight (meeting capture)", "⌥⌘I"),
     ]
 
     var body: some View {
@@ -140,7 +194,7 @@ private struct PrivacySettings: View {
             Section {
                 Text("Your words stay on your Mac.")
                     .font(.headline)
-                Text("Scripts are stored in Application Support as plain files. Speech recognition runs on this Mac using Apple's on-device models. Microphone audio is streamed to the recogniser and never written to disk. There is no account, no sync and no telemetry.")
+                Text("Scripts and meeting notes are stored in Application Support as plain files. Speech recognition runs on this Mac using Apple's on-device models. Microphone and system audio are streamed to the recogniser and never written to disk. There is no account, no sync and no telemetry.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             Section {
@@ -160,10 +214,20 @@ private struct PrivacySettings: View {
                         }
                     }
                 }
+                LabeledContent("System audio") {
+                    Text("Asked when you first start a call in Meetings").foregroundStyle(.secondary)
+                }
+                Button("System Audio Recording Settings…") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AudioCapture") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                Text("Meetings hears the other side of a call from what your Mac is playing. macOS calls this System Audio Recording; nothing is installed and nothing is recorded.")
+                    .font(.callout).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
-        .frame(height: 400)
+        .frame(height: 500)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
         }
