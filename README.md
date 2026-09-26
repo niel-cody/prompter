@@ -19,7 +19,57 @@ how the delivery went.
 
 Everything runs on your Mac. Scripts are plain JSON files in `~/Library/Application
 Support/Prompter/Scripts`. Speech recognition uses Apple's on-device `SpeechAnalyzer`;
-microphone audio is never written anywhere. No account, no backend, no telemetry.
+microphone and system audio are never written anywhere. No account, no backend, no telemetry.
+
+## Meetings: what the room says back
+
+Prompting is half of a pitch. The other half is what people say when you stop talking.
+**Meetings** is a botless note taker in the spirit of Granola: nothing joins the call, your
+Mac just listens where it already sits, on two channels. The microphone is you. What the
+Mac is playing (a Core Audio process tap, no driver) is everyone else.
+
+1. Menu bar → **New Meeting Notes** and pick a template (Pitch feedback, Customer
+   discovery, Stakeholder review, Blank). Answer the prep prompts if you like, and put the
+   names of who's on the call in the attendees field.
+2. Press **Start Listening** when the meeting begins. A timestamped transcript builds on
+   the right, labelled **Me** and **Them**; your own notes go on the left. Names are
+   suggested from context ("this is Priya", "Priya, what do you think?") with a "?" until
+   you confirm. Click any name to confirm, rename or reassign a turn. Switch to **In
+   person** when everyone is in the room with you.
+3. As people speak, feedback, objections, questions, decisions, actions, insights and
+   anything said with feeling are flagged as **suggested captures** with a sentiment. Keep,
+   recategorise or dismiss them. **⌥⌘I** keeps the last 20 seconds yourself.
+4. Stop, then **Draft from Captures** to seed the template's wrap-up sections.
+
+Every meeting is saved as JSON and mirrored as Markdown with YAML front matter and one
+heading per category, in `~/Library/Application Support/Prompter/Meetings` by default.
+Settings → Meetings points the Markdown at any folder, such as an Obsidian vault:
+
+```markdown
+---
+title: "Reorder points pitch"
+template: pitch-feedback
+tags: [pitch, prompter]
+sentiment: mixed
+captures: 4
+categories:
+  feedback: 2
+  objection: 1
+  action: 1
+---
+## Captures
+### Feedback
+- `01:01` _positive_ I like the direction a lot.
+### Objections
+- `01:05` _negative_ I'm worried about the migration for venues on the old system.
+```
+
+Detection is rule-based and on-device. It is a first pass that saves you the scrolling, not
+a verdict; the categories are the contract, and everything downstream keys off them. macOS
+asks once for "System Audio Recording" (Privacy & Security → Screen & System Audio
+Recording); a refusal doesn't fail, it just hears nothing, and the footer says so.
+Where this is heading (swappable AI, a backend with sharing, calendar and work-tracker
+integrations) is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Requirements
 
@@ -33,6 +83,7 @@ Scripts/build-app.sh debug --run      # builds and opens build/Prompter.app
 swift test                            # PrompterCore unit tests
 swift run prompter-cli parse script.txt professional    # see how a script is phrased and paced
 swift run prompter-cli follow script.txt recording.aiff # replay a recording through Voice Follow
+swift run prompter-cli insights transcript.txt          # what the meeting capture detector flags, and why
 ```
 
 `say -o take.aiff -f script.txt` gives you a recording to test with when you don't want to
@@ -51,6 +102,7 @@ Open `Package.swift` in Xcode to work on it there.
 | Previous / Next paragraph | ⌥⌘↑ / ⌥⌘↓ |
 | Smaller / Larger text | ⌥⌘− / ⌥⌘= |
 | End session & review | ⌥⌘. |
+| Mark insight (meeting capture) | ⌥⌘I |
 
 After clicking the prompt, Space and the arrow keys work on their own without the modifiers.
 The shortcuts work while Zoom, Teams, Chrome, Keynote or Loom have focus.
