@@ -16,7 +16,7 @@ first in every session; Niel and Claude edit it together. `docs/ARCHITECTURE.md`
   and a "so that" clause naming the outcome. The clause is what we reprioritise on.
 - When an item ships it moves to `CHANGELOG.md` and its line is deleted here. Ids are never
   reused.
-- Next free id: **P-33**.
+- Next free id: **P-37**.
 
 ## Now
 
@@ -31,8 +31,9 @@ first in every session; Niel and Claude edit it together. `docs/ARCHITECTURE.md`
 1. P-32 Sign with Developer ID and notarize releases (S once enrolled; needs Niel: join the
    Apple Developer Program, ~US$99/year, then set `DEVELOPER_ID` and `NOTARY_PROFILE`) so
    that beta testers download from the releases page and double-click, with no Terminal,
-   and microphone permission survives updates. This is what "a proper Mac app" means for
-   sharing; everything else about distribution is already in place.
+   and microphone permission survives updates. Decided 2026-09-27: direct download like
+   Granola, not the Mac App Store (sandbox would block the system-audio tap, review would
+   slow the update loop). Everything else about distribution is already in place.
 2. P-4 Apple Foundation Models provider behind an `IntelligenceProvider` protocol, used for
    capture classification and sentiment (M) so that suggestions come from a model rather than
    cue lists, still on-device and free. Phase A.
@@ -96,3 +97,13 @@ first in every session; Niel and Claude edit it together. `docs/ARCHITECTURE.md`
   before (needs P-7 and P-26).
 - P-29 The window snapshot tool renders sidebars blank; fine for now, fix if it starts
   costing time.
+- P-33 Duolingo-grade first run: the magic moment (prompt follows your voice) inside the
+  first minute, before any sign-up or settings, permissions asked one at a time only when
+  the feature needs them (folds in P-2).
+- P-34 Coming back: an engagement loop that fits event-driven work, not day-count streaks.
+  Candidates: streak per meeting captured and wrapped up, weekly recap of meetings,
+  captures and delivery score, and the calendar (P-7) as the thing that brings people back.
+- P-35 Speaking-coach progression: delivery score, pace and filler-word trend over time as
+  the honest place for Duolingo-style levels and progress.
+- P-36 Write down the vision line in ARCHITECTURE.md: "Prompter prompts the human", it
+  steers product people through what they say and what they hear. Name stays.
