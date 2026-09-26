@@ -16,7 +16,7 @@ first in every session; Niel and Claude edit it together. `docs/ARCHITECTURE.md`
   and a "so that" clause naming the outcome. The clause is what we reprioritise on.
 - When an item ships it moves to `CHANGELOG.md` and its line is deleted here. Ids are never
   reused.
-- Next free id: **P-30**.
+- Next free id: **P-33**.
 
 ## Now
 
@@ -28,24 +28,29 @@ first in every session; Niel and Claude edit it together. `docs/ARCHITECTURE.md`
 
 ## Next
 
-1. P-4 Apple Foundation Models provider behind an `IntelligenceProvider` protocol, used for
+1. P-32 Sign with Developer ID and notarize releases (S once enrolled; needs Niel: join the
+   Apple Developer Program, ~US$99/year, then set `DEVELOPER_ID` and `NOTARY_PROFILE`) so
+   that beta testers download from the releases page and double-click, with no Terminal,
+   and microphone permission survives updates. This is what "a proper Mac app" means for
+   sharing; everything else about distribution is already in place.
+2. P-4 Apple Foundation Models provider behind an `IntelligenceProvider` protocol, used for
    capture classification and sentiment (M) so that suggestions come from a model rather than
    cue lists, still on-device and free. Phase A.
-2. P-5 `Suggestion` provenance on every model output, with accept/dismiss recorded (M) so
+3. P-5 `Suggestion` provenance on every model output, with accept/dismiss recorded (M) so
    that we have an audit trail and an eval set from day one. Phase A.
-3. P-6 Versioned prompt files and `prompter-cli eval` over the `--meeting-test` fixtures with
+4. P-6 Versioned prompt files and `prompter-cli eval` over the `--meeting-test` fixtures with
    hand-labelled expected captures and speakers (M) so that model or prompt changes can't
    silently get worse. Phase A.
-4. P-7 EventKit calendar: offer a meeting note when an event with a video link starts, with
+5. P-7 EventKit calendar: offer a meeting note when an event with a video link starts, with
    title, template and attendees pre-filled (M) so that speaker labelling has names to work
    with and nobody forgets to press Start. Phase A.
-5. P-8 Speaker naming by model instead of regex, using surrounding turns and attendees (S
+6. P-8 Speaker naming by model instead of regex, using surrounding turns and attendees (S
    once P-4 exists) so that "Priya" is recognised from more than "this is Priya". Phase A.
-6. P-9 Wrap-up drafting by model per template section, Granola-style grey text (M) so that
+7. P-9 Wrap-up drafting by model per template section, Granola-style grey text (M) so that
    the write-up starts from the meeting rather than a blank box. Phase A.
-7. P-10 Test Voice Follow and Meetings running at the same time on one mic (S) so that
+8. P-10 Test Voice Follow and Meetings running at the same time on one mic (S) so that
    pitching from the prompt while capturing the room is known to work.
-8. P-11 Diarization spike: FluidAudio (pyannote + WeSpeaker on CoreML) on the system channel
+9. P-11 Diarization spike: FluidAudio (pyannote + WeSpeaker on CoreML) on the system channel
    (M) so that two remote voices with no verbal cues stop both being "Them".
 
 ## Later

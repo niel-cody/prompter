@@ -16,6 +16,7 @@ DRY_RUN=0; [[ "${2:-}" == "--dry-run" ]] && DRY_RUN=1
 PLIST=Resources/Info.plist
 APP=build/Prompter.app
 ZIP="build/Prompter-$VERSION.zip"
+SUM="$ZIP.sha256"
 
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "version must look like 1.2.3" >&2; exit 1; }
 grep -q "^## \[$VERSION\]" CHANGELOG.md || { echo "CHANGELOG.md has no '## [$VERSION]' section" >&2; exit 1; }
@@ -41,7 +42,9 @@ if [[ -n "${DEVELOPER_ID:-}" && -n "${NOTARY_PROFILE:-}" ]]; then
   xcrun stapler staple "$APP"
   rm -f "$ZIP"; ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 fi
-echo "built $ZIP ($(du -h "$ZIP" | cut -f1))"
+# The in-app updater compares the download against this before installing it.
+(cd "$(dirname "$ZIP")" && shasum -a 256 "$(basename "$ZIP")" > "$(basename "$SUM")")
+echo "built $ZIP ($(du -h "$ZIP" | cut -f1)); sha256 $(cut -c1-12 "$SUM")…"
 
 # Release notes: this version's section of the changelog.
 NOTES="$(awk -v v="$VERSION" '
@@ -59,5 +62,5 @@ git add "$PLIST"
 git commit -q -m "Release $VERSION (build $BUILD)"
 git tag -a "v$VERSION" -m "Prompter $VERSION"
 git push -q origin main "v$VERSION"
-gh release create "v$VERSION" "$ZIP" --title "Prompter $VERSION" --notes "$NOTES"
+gh release create "v$VERSION" "$ZIP" "$SUM" --title "Prompter $VERSION" --notes "$NOTES"
 echo "published https://github.com/niel-cody/prompter/releases/tag/v$VERSION"

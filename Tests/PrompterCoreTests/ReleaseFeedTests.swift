@@ -50,3 +50,28 @@ import Foundation
         #expect(!ReleaseFeed.isNewer("0.9.0", than: "1.0.0"))
     }
 }
+
+@Suite struct ReleaseFeedChecksumTests {
+    @Test func readsChecksumAndSize() {
+        let data = Data("""
+        {"tag_name":"v0.11.0","html_url":"https://github.com/niel-cody/prompter/releases/tag/v0.11.0","body":"",
+         "assets":[{"name":"Prompter-0.11.0.zip","size":2097542,"browser_download_url":"https://example.com/Prompter-0.11.0.zip"},
+                   {"name":"Prompter-0.11.0.zip.sha256","size":85,"browser_download_url":"https://example.com/Prompter-0.11.0.zip.sha256"}]}
+        """.utf8)
+        let r = ReleaseFeed.parseLatest(data)
+        #expect(r?.downloadURL?.lastPathComponent == "Prompter-0.11.0.zip")
+        #expect(r?.checksumURL?.lastPathComponent == "Prompter-0.11.0.zip.sha256")
+        #expect(r?.downloadSize == 2_097_542)
+    }
+
+    @Test func olderReleasesHaveNoChecksum() {
+        let data = Data("""
+        {"tag_name":"v0.10.0","html_url":"https://github.com/x/y/releases/tag/v0.10.0","body":"",
+         "assets":[{"name":"Prompter-0.10.0.zip","browser_download_url":"https://example.com/Prompter-0.10.0.zip"}]}
+        """.utf8)
+        let r = ReleaseFeed.parseLatest(data)
+        #expect(r?.downloadURL != nil)
+        #expect(r?.checksumURL == nil)
+        #expect(r?.downloadSize == nil)
+    }
+}

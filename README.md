@@ -166,8 +166,20 @@ macOS marks it as quarantined and refuses to open it — and on macOS 15 and lat
 xattr -dr com.apple.quarantine /Applications/Prompter.app
 ```
 
-Prompter checks GitHub once a day for a new version (menu bar → *Check for Updates…*; switch it
-off in Settings → Privacy).
+After that, updates are one click. Prompter checks GitHub once a day and, when there's a new
+version, shows what's new with an **Update Now** button. It downloads the release, checks it is
+genuinely Prompter (bundle identity, signature and the published checksum), swaps it in and
+reopens itself. Nothing to unzip, drag or reinstall. Menu bar → *Check for Updates…* looks
+right away; switch the daily check off in Settings → Privacy.
+
+### For beta testers
+
+1. Open Terminal (⌘ Space, type "Terminal"), paste the install line above, press Return. It
+   asks for nothing and opens Prompter when it's done. That's the only time Terminal is needed.
+2. From then on, Prompter tells you when there's a new version and updates itself with one
+   click.
+3. Something wrong, or an idea? Menu bar → *Send Feedback…*. It opens a mail with the version
+   and your Mac's details filled in; just say what happened.
 
 ### Before you present on a new Mac
 
@@ -187,8 +199,13 @@ Scripts/release.sh 1.0.0 --dry-run  # just build and zip
 ```
 
 Write the version's notes under `## [1.0.0]` in `CHANGELOG.md` first; they become the release
-notes and the text the in-app update prompt shows. Set `DEVELOPER_ID` and `NOTARY_PROFILE`
-to sign with a Developer ID and notarize.
+notes and the "What's new" text in the in-app updater. The script also publishes a `.sha256`
+next to the zip, which the updater checks before installing. Set `DEVELOPER_ID` and
+`NOTARY_PROFILE` to sign with a Developer ID and notarize.
+
+Until that's set up, testers need the Terminal one-liner because an unsigned download is
+quarantined. Joining the Apple Developer Program removes that step: testers download from the
+releases page and double-click.
 
 ## Status
 

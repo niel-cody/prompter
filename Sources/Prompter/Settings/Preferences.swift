@@ -21,6 +21,7 @@ final class Preferences {
         var checkForUpdatesAutomatically = true
         var lastUpdateCheck: Date? = nil
         var skippedUpdateVersion: String? = nil
+        var lastOfferedUpdateVersion: String? = nil
         /// Where meeting notes are mirrored as Markdown; nil means next to the JSON.
         var meetingNotesDirectory: String? = nil
     }
@@ -36,8 +37,8 @@ final class Preferences {
         } else {
             stored = Stored()
         }
-        // Debug snapshot runs must never write back into the user's real preferences.
-        if CommandLine.arguments.contains(where: { $0.hasPrefix("--snapshot") }) {
+        // Debug snapshot and update-test runs must never write back into the user's real preferences.
+        if CommandLine.arguments.contains(where: { $0.hasPrefix("--snapshot") || $0.hasPrefix("--update-") }) {
             suppressPersist = true
             if ProcessInfo.processInfo.environment["PROMPTER_SNAPSHOT_THEME"] == "light" { stored.appearance.theme = .light }
         }
@@ -74,6 +75,11 @@ final class Preferences {
     var skippedUpdateVersion: String? {
         get { stored.skippedUpdateVersion }
         set { stored.skippedUpdateVersion = newValue }
+    }
+    /// The last version the update window appeared for on its own, so it does so once.
+    var lastOfferedUpdateVersion: String? {
+        get { stored.lastOfferedUpdateVersion }
+        set { stored.lastOfferedUpdateVersion = newValue }
     }
     var meetingNotesDirectory: String? {
         get { stored.meetingNotesDirectory }

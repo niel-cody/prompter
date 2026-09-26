@@ -35,7 +35,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.removeAllItems()
 
         if let release = updates.available {
-            menu.addItem(item("Update to Prompter \(release.version)…", #selector(offerUpdate), key: ""))
+            let verb = updates.isInstalling ? "Updating to" : "Update to"
+            menu.addItem(item("\(verb) Prompter \(release.version)…", #selector(offerUpdate), key: ""))
             menu.addItem(.separator())
         }
         menu.addItem(item("New Prompt…", #selector(newPrompt), key: "n"))
@@ -117,8 +118,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(item("Open Prompter", #selector(openLibraryWindow), key: "o"))
         menu.addItem(item("Settings…", #selector(openSettingsWindow), key: ","))
+        menu.addItem(item("Send Feedback…", #selector(sendFeedback), key: ""))
         let check = item("Check for Updates…", #selector(checkForUpdates), key: "")
-        check.isEnabled = !updates.isChecking
+        check.isEnabled = !updates.isChecking && !updates.isInstalling
         menu.addItem(check)
         menu.addItem(.separator())
 
@@ -151,7 +153,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         newMeeting?(template)
     }
     @objc private func checkForUpdates() { Task { await updates.checkNow() } }
-    @objc private func offerUpdate() { updates.offerAvailable() }
+    @objc private func sendFeedback() { FeedbackComposer.send() }
+    @objc private func offerUpdate() { updates.showAvailable() }
     @objc private func openSettingsWindow() { openSettings?() }
     @objc private func showSample() { prompt.present(text: SampleScript.text, title: "Sample") }
     @objc private func toggleVisibility() { prompt.toggleVisibility() }

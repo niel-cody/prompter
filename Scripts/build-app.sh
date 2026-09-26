@@ -28,6 +28,12 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/Prompter" "$APP/Contents/MacOS/Prompter"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+# A build from a checkout says which commit it is, so it is never mistaken for the release
+# with the same number (the updater and Settings show it).
+if [[ "$CONFIG" != "release" ]]; then
+  COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo local)$( [[ -n "$(git status --porcelain 2>/dev/null)" ]] && echo "+" )"
+  /usr/libexec/PlistBuddy -c "Add :PrompterBuildCommit string $COMMIT" "$APP/Contents/Info.plist"
+fi
 # SwiftPM resource bundle (strings, sample scripts) lives next to the binary.
 if [[ -d "$BIN_DIR/Prompter_Prompter.bundle" ]]; then
   cp -R "$BIN_DIR/Prompter_Prompter.bundle" "$APP/Contents/Resources/"

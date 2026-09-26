@@ -3,92 +3,188 @@ import Foundation
 import Observation
 import PrompterCore
 
-/// Looks at the latest GitHub release and tells the user when there's a newer Prompter.
-/// Deliberately small: one unauthenticated GET, no downloads in the background, no
-/// identifying data sent. Swap for Sparkle when the audience outgrows it.
+/// Finds newer releases on GitHub and installs them in place, telling the user what is
+/// happening at each step. One unauthenticated GET a day for the check, nothing about the
+/// user sent. The window is `UpdateView`; the downloading and swapping is `UpdateInstaller`.
 @MainActor
 @Observable
 final class UpdateChecker {
     typealias Release = ReleaseInfo
 
+    enum Phase: Equatable {
+        case idle
+        case checking
+        case upToDate
+        case available
+        case downloading(received: Int64, total: Int64?)
+        case verifying
+        case installing
+        case restarting
+        case failed(String)
+    }
+
     static let releasesAPI = URL(string: "https://api.github.com/repos/niel-cody/prompter/releases/latest")!
+    static let releasesPage = URL(string: "https://github.com/niel-cody/prompter/releases/latest")!
     static let checkInterval: TimeInterval = 24 * 60 * 60
 
+    private(set) var phase: Phase = .idle
     /// A newer release we know about, for the menu to surface.
     private(set) var available: Release?
-    private(set) var isChecking = false
+
+    var isChecking: Bool { phase == .checking }
+    var isInstalling: Bool {
+        switch phase {
+        case .downloading, .verifying, .installing, .restarting: true
+        default: false
+        }
+    }
+
+    /// Set by the app: true while a prompt or a meeting is live, so an update found in the
+    /// background never pops up mid-pitch.
+    @ObservationIgnored var isBusy: () -> Bool = { false }
 
     let currentVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-    private let preferences = Preferences.shared
-    private var timer: Timer?
+    @ObservationIgnored private let preferences = Preferences.shared
+    @ObservationIgnored private var timer: Timer?
+    @ObservationIgnored private var installTask: Task<Void, Never>?
+    @ObservationIgnored private var window: UpdateWindowController!
+    /// Off only for `--update-live`, which wants to inspect the result rather than reopen.
+    @ObservationIgnored var relaunchesAfterInstall = true
+
+    init() {
+        window = UpdateWindowController(checker: self)
+    }
+
+    // MARK: - Checking
 
     /// Starts the quiet daily check if the user has it on.
     func startAutomaticChecks() {
+        UpdateInstaller().sweepLeftovers()
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 60 * 60, repeats: true) { [weak self] _ in
-            Task { @MainActor in await self?.automaticCheckIfDue() }
+            Task { @MainActor in await self?.automaticTick() }
         }
-        Task { await automaticCheckIfDue() }
+        Task { await automaticTick() }
     }
 
-    private func automaticCheckIfDue() async {
-        guard preferences.checkForUpdatesAutomatically else { return }
+    private func automaticTick() async {
+        guard preferences.checkForUpdatesAutomatically, !isInstalling, !isChecking else { return }
         let last = preferences.lastUpdateCheck ?? .distantPast
-        guard Date().timeIntervalSince(last) >= Self.checkInterval else { return }
-        if let release = await fetchLatest(), ReleaseFeed.isNewer(release.version, than: currentVersion),
-           release.version != preferences.skippedUpdateVersion {
-            available = release
+        if Date().timeIntervalSince(last) >= Self.checkInterval, let release = await fetchLatest() {
+            let newer = ReleaseFeed.isNewer(release.version, than: currentVersion)
+            available = newer && release.version != preferences.skippedUpdateVersion ? release : nil
         }
+        offerQuietlyIfNew()
     }
 
-    /// Explicit "Check for Updates…" from the menu: always reports a result.
+    /// Shows the window once per version without taking focus, and never during a pitch or
+    /// a meeting. The menu keeps offering it either way.
+    private func offerQuietlyIfNew() {
+        guard let release = available, phase == .idle || phase == .upToDate,
+              preferences.lastOfferedUpdateVersion != release.version, !isBusy() else { return }
+        preferences.lastOfferedUpdateVersion = release.version
+        phase = .available
+        window.show(activating: false)
+    }
+
+    /// Explicit "Check for Updates…" from the menu: always shows a result.
     func checkNow() async {
+        if isInstalling { window.show(activating: true); return }
         guard !isChecking else { return }
-        isChecking = true
-        defer { isChecking = false }
+        phase = .checking
+        window.show(activating: true)
         guard let release = await fetchLatest() else {
-            alert(title: "Couldn't check for updates",
-                  message: "Prompter couldn't reach GitHub. Check your connection and try again.")
+            phase = .failed("Prompter couldn't reach GitHub. Check your connection and try again.")
             return
         }
         if ReleaseFeed.isNewer(release.version, than: currentVersion) {
             available = release
-            offer(release)
+            preferences.lastOfferedUpdateVersion = release.version
+            phase = .available
         } else {
             available = nil
-            alert(title: "You're up to date", message: "Prompter \(currentVersion) is the latest version.")
+            phase = .upToDate
         }
     }
 
-    func offerAvailable() {
-        if let available { offer(available) }
+    /// "Update to Prompter x.y.z…" in the menu.
+    func showAvailable() {
+        guard available != nil else { return }
+        if !isInstalling { phase = .available }
+        window.show(activating: true)
     }
 
-    private func offer(_ release: Release) {
-        let alert = NSAlert()
-        alert.messageText = "Prompter \(release.version) is available"
-        alert.informativeText = "You have \(currentVersion).\n\n" + release.notes.prefix(1200)
-        alert.addButton(withTitle: "Download")
-        alert.addButton(withTitle: "Later")
-        alert.addButton(withTitle: "Skip This Version")
-        NSApp.activate()
-        switch alert.runModal() {
-        case .alertFirstButtonReturn:
-            NSWorkspace.shared.open(release.downloadURL ?? release.pageURL)
-        case .alertThirdButtonReturn:
-            preferences.skippedUpdateVersion = release.version
-            available = nil
-        default:
-            break
+    // MARK: - Installing
+
+    func install() {
+        guard let release = available, !isInstalling else { return }
+        guard let url = release.downloadURL else {
+            phase = .failed(UpdateInstaller.Failure.noDownload.localizedDescription)
+            return
+        }
+        let installer = UpdateInstaller()
+        phase = .downloading(received: 0, total: release.downloadSize)
+        installTask = Task {
+            do {
+                let expected = try await installer.publishedChecksum(release.checksumURL)
+                let download = try await installer.download(url, expectedBytes: release.downloadSize) { received, total in
+                    Task { @MainActor in
+                        if case .downloading = self.phase { self.phase = .downloading(received: received, total: total) }
+                    }
+                }
+                phase = .verifying
+                if let expected, expected != download.sha256 { throw UpdatePackage.VerificationError.checksumMismatch }
+                let bundle = try await installer.unpack(zip: download.file)
+                try await installer.verify(bundle: bundle, version: release.version)
+                try Task.checkCancellation()
+                phase = .installing
+                try await installer.install(bundle: bundle)
+                installer.cleanUp()
+                phase = .restarting
+                try? await Task.sleep(for: .milliseconds(900))
+                if relaunchesAfterInstall { installer.relaunch() }
+            } catch is CancellationError {
+                installer.cleanUp()
+                phase = .available
+            } catch {
+                installer.cleanUp()
+                phase = .failed(error.localizedDescription)
+            }
         }
     }
 
-    private func alert(title: String, message: String) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        NSApp.activate()
-        alert.runModal()
+    /// Only honoured before anything on disk has changed; the view hides Cancel after that.
+    func cancelInstall() {
+        installTask?.cancel()
+    }
+
+    func retry() {
+        if available != nil { install() } else { Task { await checkNow() } }
+    }
+
+    func skipThisVersion() {
+        preferences.skippedUpdateVersion = available?.version
+        available = nil
+        phase = .idle
+        window.close()
+    }
+
+    func later() {
+        phase = .idle
+        window.close()
+    }
+
+    func dismiss() {
+        if !isInstalling { phase = .idle }
+        window.close()
+    }
+
+    func windowDidClose() {
+        if !isInstalling, !isChecking { phase = .idle }
+    }
+
+    func openDownloadPage() {
+        NSWorkspace.shared.open(available?.pageURL ?? Self.releasesPage)
     }
 
     // MARK: - GitHub
@@ -108,4 +204,13 @@ final class UpdateChecker {
         }
     }
 
+    // MARK: - Debug (`--snapshot-update`)
+
+    func debugShow(phase: Phase, release: Release?) {
+        available = release
+        self.phase = phase
+        window.show(activating: true)
+    }
+
+    var debugWindowContentView: NSView? { window.contentView }
 }

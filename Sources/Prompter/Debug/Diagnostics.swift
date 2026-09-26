@@ -8,6 +8,19 @@ import Speech
 /// Apple's on-device speech model. Run it first on any machine you plan to present from.
 @MainActor
 enum Diagnostics {
+    /// The three lines that identify a build and a Mac, for feedback mail and bug reports.
+    static func summary() -> String {
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        let local = (Bundle.main.object(forInfoDictionaryKey: "PrompterBuildCommit") as? String).map { ", local build \($0)" } ?? ""
+        return """
+        Prompter \(version) (build \(build)\(local))
+        macOS \(v.majorVersion).\(v.minorVersion).\(v.patchVersion)
+        \(hardwareModel()) · \(currentArchitecture())
+        """
+    }
+
     static func run(prompt: PromptController, hotKeys: HotKeyCenter) {
         Task {
             var out: [String] = []
@@ -98,7 +111,7 @@ enum Diagnostics {
         }
     }
 
-    private static func hardwareModel() -> String {
+    static func hardwareModel() -> String {
         var size = 0
         sysctlbyname("hw.model", nil, &size, nil, 0)
         var chars = [UInt8](repeating: 0, count: size)
@@ -107,7 +120,7 @@ enum Diagnostics {
     }
 
     /// What this process is actually running as: native arm64, or Rosetta.
-    private static func currentArchitecture() -> String {
+    static func currentArchitecture() -> String {
         var translated: Int32 = 0
         var size = MemoryLayout<Int32>.size
         if sysctlbyname("sysctl.proc_translated", &translated, &size, nil, 0) == 0, translated == 1 {

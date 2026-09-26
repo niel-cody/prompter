@@ -6,12 +6,19 @@ public struct ReleaseInfo: Sendable, Equatable {
     public let notes: String
     public let pageURL: URL
     public let downloadURL: URL?
+    /// A `.sha256` asset published next to the zip, if the release has one.
+    public let checksumURL: URL?
+    /// Size of the zip in bytes, for download progress.
+    public let downloadSize: Int64?
 
-    public init(version: String, notes: String, pageURL: URL, downloadURL: URL?) {
+    public init(version: String, notes: String, pageURL: URL, downloadURL: URL?,
+                checksumURL: URL? = nil, downloadSize: Int64? = nil) {
         self.version = version
         self.notes = notes
         self.pageURL = pageURL
         self.downloadURL = downloadURL
+        self.checksumURL = checksumURL
+        self.downloadSize = downloadSize
     }
 }
 
@@ -32,8 +39,12 @@ public enum ReleaseFeed {
         let body = (json["body"] as? String ?? "").replacingOccurrences(of: "\r\n", with: "\n")
         let assets = json["assets"] as? [[String: Any]] ?? []
         let zip = assets.first { ($0["name"] as? String)?.hasSuffix(".zip") == true }
+        let checksum = assets.first { ($0["name"] as? String)?.hasSuffix(".sha256") == true }
         let download = (zip?["browser_download_url"] as? String).flatMap(URL.init(string:))
-        return ReleaseInfo(version: version, notes: plainNotes(body), pageURL: page, downloadURL: download)
+        let checksumURL = (checksum?["browser_download_url"] as? String).flatMap(URL.init(string:))
+        let size = (zip?["size"] as? NSNumber)?.int64Value
+        return ReleaseInfo(version: version, notes: plainNotes(body), pageURL: page, downloadURL: download,
+                           checksumURL: checksumURL, downloadSize: size)
     }
 
     /// Markdown release notes rendered as plain text, for an alert.

@@ -5,6 +5,27 @@ version becomes its GitHub release notes.
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-09-27
+
+The release that makes the next one easy: updates happen inside the app, and testers can
+talk back from the menu bar.
+
+- **Updates in one click.** When a new version is out, Prompter shows what's new with an
+  Update Now button. It downloads the release, checks it is genuinely Prompter (bundle
+  identity, code signature and the release's published checksum), swaps it in and reopens
+  itself. Nothing to unzip, drag or reinstall, and the window says what it is doing at each
+  step. If it can't finish, nothing on the Mac has changed and it says why. An update found
+  by the daily check shows itself once per version without stealing focus, and never while
+  a prompt or a meeting is running.
+- Releases now publish a `.sha256` next to the zip. Copies older than this one still open
+  the releases page, so this is the last update that needs the installer.
+- **Send Feedback…** in the menu bar opens a mail to Niel with the version, macOS and Mac
+  already filled in, so beta testers only have to say what happened.
+- A build from a checkout shows its commit ("local build 099b27b+") in the update window and
+  in feedback mail, so it is never mistaken for the release with the same number.
+- `Prompter --update-test <zip>`, `--update-live` and `--snapshot-update out.png` exercise
+  the swap, the real release and the window's states from the terminal.
+
 ## [0.10.0] — 2026-09-26
 
 Prompter grows a second half. Prompting helps you say the thing clearly; Meetings captures

@@ -18,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // One Prompter at a time. Two copies means two menu-bar icons and two claims on the
         // same global shortcuts, which is worse than useless. Debug modes are exempt so they
         // can run while the app is open.
-        let isDebugRun = args.contains { $0.hasPrefix("--snapshot") || $0 == "--follow-test" || $0 == "--meeting-test" || $0 == "--diagnose" }
+        let isDebugRun = args.contains { $0.hasPrefix("--snapshot") || $0 == "--follow-test" || $0 == "--meeting-test" || $0 == "--diagnose" || $0.hasPrefix("--update-") }
         if !isDebugRun, let other = Self.otherRunningInstance() {
             other.activate()
             NSApp.terminate(nil)
@@ -40,6 +40,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.openMeetings = { [weak self] in self?.meetingsWindow.show() }
         statusItem.newMeeting = { [weak self] template in self?.meetingsWindow.showNew(template: template) }
         statusItem.openSettings = { [weak self] in self?.settingsWindow.show() }
+        updates.isBusy = { [weak self] in
+            guard let self else { return false }
+            return promptController.session.isRunning || meetings.isCapturing
+        }
         if !isDebugRun {
             updates.startAutomaticChecks()
         }
@@ -63,6 +67,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else if let i = args.firstIndex(of: "--meeting-test"), i + 1 < args.count {
             let system = i + 2 < args.count && !args[i + 2].hasPrefix("--") ? args[i + 2] : nil
             DebugSnapshot.runMeetingTest(audioPath: args[i + 1], systemAudioPath: system)
+        } else if let i = args.firstIndex(of: "--update-test"), i + 1 < args.count {
+            let target = i + 2 < args.count && !args[i + 2].hasPrefix("--") ? args[i + 2] : nil
+            UpdateTest.run(zipPath: args[i + 1], targetPath: target)
+        } else if args.contains("--update-live") {
+            UpdateTest.runLive(checker: updates)
+        } else if let i = args.firstIndex(of: "--snapshot-update"), i + 1 < args.count {
+            UpdateTest.snapshot(checker: updates, outputPath: args[i + 1])
         } else if let i = args.firstIndex(of: "--snapshot-window"), i + 2 < args.count {
             DebugSnapshot.runWindow(args[i + 1], library: libraryWindow, settings: settingsWindow, meetings: meetingsWindow,
                                     model: library, meetingModel: meetings, outputPath: args[i + 2])

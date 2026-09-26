@@ -200,7 +200,7 @@ private struct PrivacySettings: View {
             Section {
                 Toggle("Check for updates automatically", isOn: Binding(get: { preferences.checkForUpdatesAutomatically },
                                                                        set: { preferences.checkForUpdatesAutomatically = $0 }))
-                Text("Once a day Prompter asks GitHub for the latest release. Nothing about you or your scripts is sent.")
+                Text("Once a day Prompter asks GitHub for the latest release and offers to install it with one click. Nothing about you or your scripts is sent.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             Section {

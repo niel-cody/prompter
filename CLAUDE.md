@@ -42,6 +42,7 @@ The shell can't `screencapture`. The app has debug flags that render to PNG and 
 - Make a test recording: `say -v Karen -r 165 -o spoken.aiff -f spoken.txt`.
 - `Prompter --transcript` logs transcripts and phrase moves via NSLog (`log show --predicate 'process == "Prompter"'`).
 - `Prompter --diagnose [out.txt]` — OS, hardware, every display's geometry and computed camera placement, mic access, speech model status, hot keys. Run this first on any unfamiliar Mac.
+- `Prompter --update-test <zip> [target.app]` — the file-system half of an in-app update (unpack → verify → swap) against a scratch copy of the app; reports each step and checks for leftovers. `Prompter --update-live`, run **from a scratch copy whose Info.plist says an older version**, does the real thing against the real GitHub release and stops short of relaunching. `Prompter --snapshot-update out.png` renders the update window in every state (`out-<state>.png` for layout, `out-<state>-text.png` for the words). Run these after touching `Sources/Prompter/Updates`.
 
 Debug flags bypass the single-instance guard, so they run while the app is open. Everything
 else hands over to the running copy and exits.
@@ -58,6 +59,18 @@ Builds are ad-hoc signed, so Gatekeeper rejects a browser-downloaded copy and ri
 Open does **not** override that on macOS 15+. The installer clears `com.apple.quarantine`,
 which is why it exists. Set `DEVELOPER_ID` and `NOTARY_PROFILE` once enrolled in the Apple
 Developer Program and the problem goes away.
+
+Beta feedback: menu bar → Send Feedback… (`FeedbackComposer`) opens a mail to the address
+in that file with `Diagnostics.summary()` appended. Change the address there if it moves.
+
+After the first install, updates happen inside the app (`Sources/Prompter/Updates`):
+`UpdateChecker` is the state machine and window owner, `UpdateInstaller` downloads, unpacks,
+verifies (bundle identity, `codesign --verify`, the release's `.sha256`) and swaps the bundle
+with two renames in its own folder, then relaunches once the old process has exited. If the
+folder isn't writable it runs the swap once with administrator privileges. `release.sh`
+publishes the `.sha256` asset; keep doing so, the updater refuses a mismatch. Copies older
+than 0.11.0 only know how to open the releases page, so the move onto in-app updates is one
+last manual install.
 
 Snapshot runs never persist preferences (`Preferences` suppresses writes when any `--snapshot*` flag is present).
 
