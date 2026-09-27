@@ -1,54 +1,10 @@
 import SwiftUI
 import PrompterCore
 
-/// The script editor. A list of scripts, a place to write, and one button that matters.
-struct LibraryView: View {
-    @Bindable var library: LibraryModel
-    var prompt: PromptController
-
-    var body: some View {
-        NavigationSplitView {
-            List(selection: $library.selectedID) {
-                ForEach(library.documents) { doc in
-                    LibraryRow(document: doc)
-                        .tag(doc.id)
-                        .contextMenu {
-                            Button(doc.isFavourite ? "Remove from Favourites" : "Add to Favourites") { library.toggleFavourite(doc.id) }
-                            Button("Duplicate") { library.duplicate(doc.id) }
-                            Divider()
-                            Button("Delete", role: .destructive) { library.delete(doc.id) }
-                        }
-                }
-            }
-            .listStyle(.sidebar)
-            .searchable(text: $library.searchText, placement: .sidebar, prompt: "Search")
-            .navigationSplitViewColumnWidth(min: 200, ideal: 240)
-            .toolbar {
-                ToolbarItem {
-                    Button { library.createNew() } label: { Label("New Script", systemImage: "square.and.pencil") }
-                        .keyboardShortcut("n")
-                }
-            }
-        } detail: {
-            if let doc = library.selected {
-                EditorView(document: doc, library: library, prompt: prompt)
-            } else {
-                ContentUnavailableView {
-                    Label("No Script Selected", systemImage: "text.alignleft")
-                } description: {
-                    Text("Pick a script, or copy some text and press ⌥⌘V to prompt it straight away.")
-                } actions: {
-                    Button("New Script") { library.createNew() }
-                    Button("Prompt Clipboard") { prompt.promptClipboard() }
-                }
-            }
-        }
-        .frame(minWidth: 720, minHeight: 460)
-    }
-}
-
-private struct LibraryRow: View {
+/// A script in the sidebar: title, length, when it changed.
+struct ScriptRow: View {
     let document: ScriptDocument
+
     var body: some View {
         HStack(spacing: 6) {
             VStack(alignment: .leading, spacing: 2) {
@@ -65,7 +21,8 @@ private struct LibraryRow: View {
     }
 }
 
-private struct EditorView: View {
+/// The script editor: a title, a place to write, and one button that matters.
+struct ScriptEditorView: View {
     @State var document: ScriptDocument
     var library: LibraryModel
     var prompt: PromptController
@@ -119,6 +76,7 @@ private struct EditorView: View {
         }
         .font(.callout)
         .foregroundStyle(.secondary)
+        .lineLimit(1)
         .padding(.horizontal, 28)
         .padding(.vertical, 10)
     }

@@ -10,6 +10,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let updates: UpdateChecker
     var openLibrary: (() -> Void)?
     var openMeetings: (() -> Void)?
+    var newScript: (() -> Void)?
     var newMeeting: ((MeetingTemplate) -> Void)?
     var openSettings: (() -> Void)?
 
@@ -39,13 +40,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(item("\(verb) Prompter \(release.version)…", #selector(offerUpdate), key: ""))
             menu.addItem(.separator())
         }
-        menu.addItem(item("New Prompt…", #selector(newPrompt), key: "n"))
+        menu.addItem(item("New Script…", #selector(newPrompt), key: "n"))
         menu.addItem(item("Prompt Clipboard", #selector(promptClipboard), key: "v", modifiers: [.command, .option]))
-        let recent = NSMenuItem(title: "Recent Prompts", action: nil, keyEquivalent: "")
+        let recent = NSMenuItem(title: "Recent Scripts", action: nil, keyEquivalent: "")
         let recentMenu = NSMenu()
         let recents = prompt.library?.recentDocuments(limit: 6) ?? []
         if recents.isEmpty {
-            let none = NSMenuItem(title: "No Recent Prompts", action: nil, keyEquivalent: "")
+            let none = NSMenuItem(title: "No Recent Scripts", action: nil, keyEquivalent: "")
             none.isEnabled = false
             recentMenu.addItem(none)
         }
@@ -135,7 +136,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc private func promptClipboard() { prompt.promptClipboard() }
-    @objc private func newPrompt() { prompt.library?.createNew(); openLibrary?() }
+    @objc private func newPrompt() { newScript?() }
     @objc private func presentRecent(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String, let id = UUID(uuidString: raw),
               let doc = prompt.library?.document(id: id) else { return }

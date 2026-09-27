@@ -7,9 +7,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: StatusItemController!
     private var hotKeys: HotKeyCenter!
     private var library: LibraryModel!
-    private var libraryWindow: LibraryWindowController!
     private var meetings: MeetingController!
-    private var meetingsWindow: MeetingsWindowController!
+    private var workspace: Workspace!
+    private var mainWindow: MainWindowController!
     private var settingsWindow: SettingsWindowController!
     private let updates = UpdateChecker()
 
@@ -28,17 +28,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         promptController = PromptController()
         library = LibraryModel(store: ScriptLibrary(directory: ScriptLibrary.defaultDirectory()))
         promptController.library = library
-        libraryWindow = LibraryWindowController(library: library, prompt: promptController)
         let notesFolder = Preferences.shared.meetingNotesDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) }
         meetings = MeetingController(store: MeetingStore(directory: MeetingStore.defaultDirectory(), markdownDirectory: notesFolder))
         meetings.library = library
-        meetingsWindow = MeetingsWindowController(meetings: meetings)
+        workspace = Workspace(library: library, meetings: meetings, prompt: promptController)
+        mainWindow = MainWindowController(workspace: workspace)
         settingsWindow = SettingsWindowController(prompt: promptController, meetings: meetings)
         promptController.openSettings = { [weak self] in self?.settingsWindow.show() }
         statusItem = StatusItemController(prompt: promptController, meetings: meetings, updates: updates)
-        statusItem.openLibrary = { [weak self] in self?.libraryWindow.show() }
-        statusItem.openMeetings = { [weak self] in self?.meetingsWindow.show() }
-        statusItem.newMeeting = { [weak self] template in self?.meetingsWindow.showNew(template: template) }
+        statusItem.openLibrary = { [weak self] in self?.mainWindow.show() }
+        statusItem.openMeetings = { [weak self] in self?.mainWindow.show(.meetings) }
+        statusItem.newScript = { [weak self] in self?.mainWindow.showNewScript() }
+        statusItem.newMeeting = { [weak self] template in self?.mainWindow.showNewMeeting(template: template) }
         statusItem.openSettings = { [weak self] in self?.settingsWindow.show() }
         updates.isBusy = { [weak self] in
             guard let self else { return false }
@@ -75,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else if let i = args.firstIndex(of: "--snapshot-update"), i + 1 < args.count {
             UpdateTest.snapshot(checker: updates, outputPath: args[i + 1])
         } else if let i = args.firstIndex(of: "--snapshot-window"), i + 2 < args.count {
-            DebugSnapshot.runWindow(args[i + 1], library: libraryWindow, settings: settingsWindow, meetings: meetingsWindow,
+            DebugSnapshot.runWindow(args[i + 1], main: mainWindow, settings: settingsWindow,
                                     model: library, meetingModel: meetings, outputPath: args[i + 2])
         } else if let i = args.firstIndex(of: "--snapshot-review"), i + 1 < args.count {
             DebugSnapshot.runReview(prompt: promptController, outputPath: args[i + 1])
@@ -84,7 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else if args.contains("--sample") {
             promptController.present(text: SampleScript.text, title: "Sample")
         } else if !Preferences.shared.hasCompletedOnboarding {
-            libraryWindow.showOnboarding()
+            mainWindow.showOnboarding()
         }
     }
 
@@ -98,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        libraryWindow.show()
+        mainWindow.show()
         return true
     }
 }

@@ -2,58 +2,17 @@ import AppKit
 import SwiftUI
 import PrompterCore
 
-/// Meeting notes: a list of sessions, and for the chosen one, your notes on the left and
-/// what the room said on the right. Nothing joins the call; the Mac listens where it sits.
-struct MeetingsView: View {
-    @Bindable var meetings: MeetingController
-
-    var body: some View {
-        NavigationSplitView {
-            List(selection: $meetings.selectedID) {
-                ForEach(meetings.notes) { note in
-                    MeetingRow(note: note, isActive: meetings.activeID == note.id)
-                        .tag(note.id)
-                        .contextMenu {
-                            Button("Reveal Markdown in Finder") { meetings.revealMarkdown(note.id) }
-                            Divider()
-                            Button("Delete", role: .destructive) { meetings.delete(note.id) }
-                        }
-                }
-            }
-            .listStyle(.sidebar)
-            .searchable(text: $meetings.searchText, placement: .sidebar, prompt: "Search notes and transcripts")
-            .navigationSplitViewColumnWidth(min: 210, ideal: 250)
-            .toolbar {
-                ToolbarItem {
-                    NewMeetingMenu(meetings: meetings)
-                }
-            }
-        } detail: {
-            if let note = meetings.selected {
-                MeetingDetailView(note: note, meetings: meetings)
-            } else {
-                ContentUnavailableView {
-                    Label("No Meeting Selected", systemImage: "waveform.and.mic")
-                } description: {
-                    Text("Start a meeting note before you pitch. Prompter listens through the microphone, keeps a transcript, and flags feedback, objections, questions and decisions as they're said.")
-                } actions: {
-                    NewMeetingMenu(meetings: meetings, prominent: true)
-                }
-            }
-        }
-        .frame(minWidth: 940, minHeight: 540)
-    }
-}
-
-private struct NewMeetingMenu: View {
+/// New meeting notes from a template; the button itself starts Pitch feedback.
+struct NewMeetingMenu: View {
     var meetings: MeetingController
     var prominent = false
+    var create: (MeetingTemplate) -> Void
 
     var body: some View {
         Menu {
             ForEach(MeetingTemplate.builtIn) { template in
                 Button {
-                    meetings.create(template: template)
+                    create(template)
                 } label: {
                     Text(template.name)
                     Text(template.summary)
@@ -62,13 +21,14 @@ private struct NewMeetingMenu: View {
         } label: {
             Label("New Meeting", systemImage: "plus")
         } primaryAction: {
-            meetings.create(template: .pitchFeedback)
+            create(.pitchFeedback)
         }
         .if(prominent) { $0.buttonStyle(.borderedProminent) }
     }
 }
 
-private struct MeetingRow: View {
+/// A meeting in the sidebar: title, when, whether it's listening now.
+struct MeetingRow: View {
     let note: MeetingNote
     let isActive: Bool
 
@@ -96,7 +56,8 @@ private struct MeetingRow: View {
 
 // MARK: - Detail
 
-private struct MeetingDetailView: View {
+/// One meeting: your notes on the left, what the room said on the right.
+struct MeetingDetailView: View {
     let note: MeetingNote
     var meetings: MeetingController
 
@@ -112,11 +73,19 @@ private struct MeetingDetailView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            HSplitView {
-                leftPane
-                    .frame(minWidth: 380, idealWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
-                rightPane
-                    .frame(minWidth: 340, idealWidth: 380, maxWidth: .infinity, maxHeight: .infinity)
+            // A plain HStack rather than HSplitView: a split view lets unwrapped transcript
+            // text decide the pane's width and the pane runs off the window. The right pane
+            // takes a fixed share of whatever width there is, so nothing is ever clipped.
+            GeometryReader { geometry in
+                let right = min(520, max(320, geometry.size.width * 0.42))
+                HStack(spacing: 0) {
+                    leftPane
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    Divider()
+                    rightPane
+                        .frame(width: right)
+                        .frame(maxHeight: .infinity)
+                }
             }
             Divider()
             footer
@@ -184,13 +153,13 @@ private struct MeetingDetailView: View {
                 .help("On a call, the microphone is you and system audio is everyone else. In person, the microphone hears the whole room.")
                 TextField(note.isInPerson ? "Who's in the room" : "Who's on the call (names help label speakers)", text: binding(\.attendees))
                     .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 320)
+                    .frame(minWidth: 150, maxWidth: 320)
                 if let library = meetings.library, !library.documents.isEmpty {
                     Picker("Script", selection: Binding(get: { note.scriptID }, set: { id in meetings.modify(note.id) { $0.scriptID = id } })) {
                         Text("No script").tag(UUID?.none)
                         ForEach(library.documents) { doc in Text(doc.title).tag(UUID?.some(doc.id)) }
                     }
-                    .frame(maxWidth: 320)
+                    .frame(minWidth: 140, maxWidth: 260)
                     .help("The script you're pitching. Its vocabulary helps recognition.")
                 }
                 Spacer()
@@ -209,7 +178,8 @@ private struct MeetingDetailView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 260)
+            .frame(maxWidth: 260)
+            .padding(.horizontal, 16)
             .padding(.vertical, 10)
             switch pane {
             case .notes:
@@ -273,11 +243,11 @@ private struct MeetingDetailView: View {
                 }
             }
             Spacer()
-            Text("Markdown in \(meetings.markdownDirectory.path(percentEncoded: false).replacingOccurrences(of: NSHomeDirectory(), with: "~"))")
-                .lineLimit(1).truncationMode(.middle)
         }
         .font(.callout)
         .foregroundStyle(.secondary)
+        .lineLimit(2)
+        .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 24)
         .padding(.vertical, 9)
     }
@@ -438,14 +408,14 @@ private struct CaptureRow: View {
                     .foregroundStyle(capture.isKept ? .primary : .secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
-                    Text(MeetingMarkdown.clock(capture.at)).monospacedDigit()
-                    if let speaker = capture.speaker { Text(speaker).fontWeight(.medium) }
-                    Text(capture.category.displayName)
-                    if capture.sentiment != .neutral { Text(capture.sentiment.displayName) }
-                    if capture.source == .marked { Text("marked") }
+                    // Tokens never break mid-word; when the pane is narrow the less
+                    // important ones go rather than hyphenate.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 8) { meta(full: true) }
+                        HStack(spacing: 8) { meta(full: false) }
+                    }
                     if !capture.isKept {
-                        Text("suggested").italic()
-                        Spacer()
+                        Spacer(minLength: 4)
                         Button("Keep") { meetings.keep(capture.id, in: noteID) }
                         Button("Dismiss") { meetings.remove(capture.id, from: noteID) }
                     }
@@ -474,6 +444,19 @@ private struct CaptureRow: View {
             if !capture.isKept { Button("Keep") { meetings.keep(capture.id, in: noteID) } }
             Divider()
             Button("Delete", role: .destructive) { meetings.remove(capture.id, from: noteID) }
+        }
+    }
+}
+
+private extension CaptureRow {
+    @ViewBuilder func meta(full: Bool) -> some View {
+        Text(MeetingMarkdown.clock(capture.at)).monospacedDigit().fixedSize()
+        if let speaker = capture.speaker { Text(speaker).fontWeight(.medium).lineLimit(1).fixedSize() }
+        Text(capture.category.displayName).fixedSize()
+        if full {
+            if capture.sentiment != .neutral { Text(capture.sentiment.displayName).fixedSize() }
+            if capture.source == .marked { Text("marked").fixedSize() }
+            if !capture.isKept { Text("suggested").italic().fixedSize() }
         }
     }
 }

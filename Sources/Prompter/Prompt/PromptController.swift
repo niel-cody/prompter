@@ -15,7 +15,7 @@ final class PromptController {
     private var observers: [NSObjectProtocol] = []
     /// Called when the user asks for Settings from the prompt's hover controls.
     var openSettings: (() -> Void)?
-    /// Saves clipboard prompts so they show up under Recent Prompts.
+    /// Saves clipboard prompts so they show up under Recent Scripts.
     var library: LibraryModel?
     private(set) var currentDocumentID: UUID?
 
@@ -89,7 +89,7 @@ final class PromptController {
             return
         }
         let title = ScriptDocument.inferredTitle(from: text)
-        // Save it quietly so it appears under Recent Prompts and can be edited later.
+        // Save it quietly so it appears under Recent Scripts and can be edited later.
         let saved = library?.saveClipboardPrompt(title: title, text: text)
         present(text: text, title: title, documentID: saved?.id)
     }

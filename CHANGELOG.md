@@ -5,6 +5,19 @@ version becomes its GitHub release notes.
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-09-27
+
+One window instead of two, and nothing cut off.
+
+- **One window.** Scripts and Meetings are two sections of a single sidebar, with one New
+  button and one search across scripts, notes and transcripts. The separate Meetings window
+  is gone; ⌘M opens the same window on your meetings. The welcome card is a sheet on that
+  window rather than a window of its own.
+- Nothing is clipped any more: the meeting's captures and transcript pane takes a fixed share
+  of the width and text wraps, down to the window's minimum size.
+- "Prompts" are now "Scripts" in the menu bar (New Script…, Recent Scripts). Prompt Clipboard
+  keeps its name; it's the action.
+
 ## [0.11.0] — 2026-09-27
 
 The release that makes the next one easy: updates happen inside the app, and testers can

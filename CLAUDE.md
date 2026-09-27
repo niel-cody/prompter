@@ -35,7 +35,7 @@ The shell can't `screencapture`. The app has debug flags that render to PNG and 
 
 - `Prompter --snapshot out.png` — the prompt panel + placement report (`out.png.txt`). Env: `PROMPTER_SNAPSHOT_THEME=light`, `PROMPTER_SNAPSHOT_HOVER=1`.
 - `Prompter --snapshot-review out.png` — review card for a simulated session.
-- `Prompter --snapshot-window library|settings|onboarding out.png` — unreliable for sidebars/segmented controls (offscreen capture artefacts); trust the panel captures, not these.
+- `Prompter --snapshot-window scripts|meetings|empty|settings|onboarding out.png` — the one main window in each state; `PROMPTER_SNAPSHOT_SIZE=880x520` captures it at the minimum size to check nothing clips. Sidebars and segmented controls render blank (offscreen capture artefacts); the detail pane is reliable.
 - `Prompter --follow-test recording.aiff` — **the real live pipeline** (AVAudioEngine → converter → SpeechAnalyzer → matcher → session → review) with a file as the mic and output muted. Run this after touching anything in `Sources/Prompter/Speech`.
 - `Prompter --meeting-test mic.aiff [system.aiff]` — the same pipeline into meeting capture (transcript → `SpeakerLabeler` → `InsightDetector` → Markdown) using a throwaway store; two files simulate a call (mic = Me, second file = system audio = Them). Prints labelled segments, suggestions and the final Markdown. Run this after touching `Sources/Prompter/Meetings`, `Speech`, the labeler or the detector. `say` supports `[[slnc 5000]]` for silences, which is how to stage turn-taking between the two files.
 - The real system-audio tap (`SystemAudioTap`) can't be driven from a file. It needs "System Audio Recording" (Privacy & Security → Screen & System Audio Recording); a refusal yields silence, not an error, so the footer watches `systemAudioPeak`.
@@ -75,6 +75,9 @@ last manual install.
 Snapshot runs never persist preferences (`Preferences` suppresses writes when any `--snapshot*` flag is present).
 
 ## Design rules that matter
+
+- One window. Scripts and Meetings are sections of one sidebar in `MainView`, with one New menu and one search; `Workspace` holds the single selection across both models and every menu-bar action goes through it. A new feature is a new sidebar section, not a new window. Settings, the update window, the review card and the prompt panel are the only other windows.
+- Inside the meeting detail, use a fixed-share `HStack` for side-by-side panes, not `HSplitView`: a split view lets unwrapped text set the pane width and the pane runs off the window.
 
 - Voice position and pace position are separate. The Pace Dot never moves the text.
 - Phrase advances on the first matched word of the *next* phrase, so a deliberate pause keeps the current line highlighted.

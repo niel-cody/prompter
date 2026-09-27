@@ -103,19 +103,23 @@ enum DebugSnapshot {
         }
     }
 
-    /// `--snapshot-window library|settings|onboarding|meetings out.png`: shows the window, captures it.
-    static func runWindow(_ which: String, library: LibraryWindowController, settings: SettingsWindowController,
-                          meetings: MeetingsWindowController, model: LibraryModel, meetingModel: MeetingController, outputPath: String) {
+    /// `--snapshot-window scripts|meetings|empty|settings|onboarding out.png`: shows the window, captures it.
+    static func runWindow(_ which: String, main: MainWindowController, settings: SettingsWindowController,
+                          model: LibraryModel, meetingModel: MeetingController, outputPath: String) {
         let expectedTitle: String
         var cleanup: () -> Void = {}
         switch which {
-        case "library":
+        case "library", "scripts":
             expectedTitle = "Prompter"
             if model.documents.isEmpty { model.createNew(title: "Sample: inventory update", text: SampleScript.text) }
-            model.selectedID = model.documents.first?.id
-            library.show()
+            main.workspace.selection = model.documents.first.map { .script($0.id) }
+            main.show()
+        case "empty":
+            expectedTitle = "Prompter"
+            main.workspace.selection = nil
+            main.show()
         case "meetings":
-            expectedTitle = "Meetings"
+            expectedTitle = "Prompter"
             // A throwaway note with something in it, removed again before exit.
             let sample = meetingModel.create(template: .pitchFeedback, title: "Snapshot: reorder points pitch")
             meetingModel.modify(sample.id) { note in
@@ -131,10 +135,17 @@ enum DebugSnapshot {
                 ]
             }
             cleanup = { meetingModel.delete(sample.id) }
-            meetings.show()
+            main.workspace.selection = .meeting(sample.id)
+            main.show()
         case "settings": expectedTitle = "Prompter Settings"; settings.show()
-        case "onboarding": expectedTitle = "Welcome to Prompter"; library.showOnboarding()
+        case "onboarding": expectedTitle = "Welcome to Prompter"; main.showOnboarding()
         default: print("unknown window \(which)"); NSApp.terminate(nil); return
+        }
+        // PROMPTER_SNAPSHOT_SIZE=880x520 captures the window at that size, to check the minimum.
+        if let size = ProcessInfo.processInfo.environment["PROMPTER_SNAPSHOT_SIZE"],
+           let x = size.firstIndex(of: "x"), let w = Double(size[..<x]), let h = Double(size[size.index(after: x)...]),
+           let window = NSApp.windows.first(where: { $0.title == "Prompter" && $0.isVisible }) {
+            window.setContentSize(NSSize(width: w, height: h))
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             if let window = NSApp.windows.first(where: { $0.title == expectedTitle && $0.isVisible }),
@@ -149,6 +160,8 @@ enum DebugSnapshot {
                 print("window snapshot: no window")
             }
             cleanup()
+            // A sheet keeps the app from terminating; end it first.
+            for w in NSApp.windows { if let sheet = w.attachedSheet { w.endSheet(sheet) } }
             NSApp.terminate(nil)
         }
     }

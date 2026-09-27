@@ -16,14 +16,14 @@ first in every session; Niel and Claude edit it together. `docs/ARCHITECTURE.md`
   and a "so that" clause naming the outcome. The clause is what we reprioritise on.
 - When an item ships it moves to `CHANGELOG.md` and its line is deleted here. Ids are never
   reused.
-- Next free id: **P-37**.
+- Next free id: **P-39**.
 
 ## Now
 
 - P-1 Verify the real system-audio tap on a live Zoom/Meet/Teams call (S) so that Call mode
   is proven on hardware, not just through recordings. Needs Niel: approve the System Audio
   Recording prompt, then check the footer says "hearing the call".
-- P-2 First-run explanation of System Audio Recording inside the Meetings window (S) so that
+- P-2 First-run explanation of System Audio Recording inside the meeting detail (S) so that
   the permission prompt never surprises anyone and a refusal has a visible fix.
 
 ## Next
@@ -106,4 +106,8 @@ first in every session; Niel and Claude edit it together. `docs/ARCHITECTURE.md`
 - P-35 Speaking-coach progression: delivery score, pace and filler-word trend over time as
   the honest place for Duolingo-style levels and progress.
 - P-36 Write down the vision line in ARCHITECTURE.md: "Prompter prompts the human", it
-  steers product people through what they say and what they hear. Name stays.
+  steers product people through what they say and what they hear, and is the gateway that
+  pulls scripts and insights together and posts them to the right systems. Name stays.
+- P-38 History by person: who I've worked with and talked to, across meetings, with
+  commonalities and trends (the third sidebar section after Scripts and Meetings; builds
+  on P-26 themes and per-customer views).
